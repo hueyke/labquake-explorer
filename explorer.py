@@ -3,10 +3,9 @@ from tkinter import ttk
 from tkinter import filedialog
 import numpy as np
 import os
-from simplePlotView import SimplePlotView
-# from testDataUpdatingView import TestDataUpdatingView
-from pointsDraggingView import PointsDraggingView
-from pointsPickingView import PointsPickingView
+from numbers import Number
+from views.simplePlotView import SimplePlotView
+from views.pointsPickingView import PointsPickingView
 
 class DataViewer:
     def __init__(self, root):
@@ -23,12 +22,12 @@ class DataViewer:
 
         # Right-click callback on the Treeview item
         self.data_tree.bind("<Button-2>", self.on_right_click)
+        self.data_tree.bind("<Button-3>", self.on_right_click)
 
         # Context menu
         self.context_menu = tk.Menu(root, tearoff=0)
-        # self.context_menu.add_command(label="Test", command=self.on_test)
         self.context_menu.add_command(label="Min/Max", command=self.min_max)
-        self.context_menu.add_command(label="Pick", command=self.pick)
+        self.context_menu.add_command(label="Pick Events", command=self.pick_events)
 
         # Buttons
         self.open_button = tk.Button(
@@ -75,9 +74,11 @@ class DataViewer:
                 label_text = item
             elif type(parent_dict[item]) is int:
                 label_text = '%s: %d' % (item, parent_dict[item])
-            elif type(parent_dict[item]) is float:
-                label_text = '%s: %f' % (item, parent_dict[item])
-            elif type(parent_dict[item]) is np.float64:
+            # elif type(parent_dict[item]) is float:
+            #     label_text = '%s: %f' % (item, parent_dict[item])
+            # elif type(parent_dict[item]) is np.float64:
+            #     label_text = '%s: %f' % (item, parent_dict[item])
+            elif isinstance(parent_dict[item], Number):
                 label_text = '%s: %f' % (item, parent_dict[item])
             elif type(parent_dict[item]) is np.ndarray:
                 label_text = '%s: array [%d]' % (item, len(parent_dict[item]))
@@ -101,7 +102,11 @@ class DataViewer:
             except:
                 if type(parent_array[i]) is dict:
                     label_text = '[%d]: dict' % i
-                elif type(parent_array[i]) is np.float64:
+                # elif type(parent_array[i]) is np.float64:
+                #     label_text = '[%d]: %f' % (i, parent_array[i])
+                elif isinstance(parent_array[i], np.integer):
+                    label_text = '[%d]: %d' % (i, parent_array[i])
+                elif isinstance(parent_array[i], Number):
                     label_text = '[%d]: %f' % (i, parent_array[i])
                 elif type(parent_array[i]) is np.ndarray or type(parent_array[i]) is list:
                     label_text = '[%d]: array [%d]' % (i, len(parent_array[i]))
@@ -164,28 +169,24 @@ class DataViewer:
         else:
             return self.get_data(item, path[path.index('/')+1:])
     
-    def set_data(self, parent, path, value):
+    def set_data(self, parent, path, value, add_key=False):
         paths = path.split('/')
         key = paths[0]
         if key[0] == '[' and key[-1] == ']':
             s = key.split(']')[0].split('[')[1]
             key = int(s)
-        item = parent[key]
-
-        print(f'set_data: {path} {value}')
+        if type(key) is int or key in parent:
+            item = parent[key]
+        elif add_key:
+            parent[key] = None
+            item = parent[key]
+        else:
+            raise Exception("key not found in data")
+        
         if len(paths) == 1:
             parent[key] = value
         else:
-            self.set_data(item, path[path.index('/')+1:], value)
-    
-    def update_data(self, path, value):
-        self.set_data(self.data, path, value)
-
-    # def on_test(self):
-    #     selected_item = self.data_tree.selection()
-    #     path, item = self.get_full_path()
-    #     data = self.get_data(self.data, path)
-    #     test_view = TestDataUpdatingView(self, data, path, self.update_data)
+            self.set_data(item, path[path.index('/')+1:], value, add_key)
         
     def min_max(self):
         path, item = self.get_full_path()
@@ -194,9 +195,9 @@ class DataViewer:
         idx_min = np.argmin(y)
         idx_max = np.argmax(y)
         picked_idx = [idx_max, idx_min]
-        pointsDraggingView = PointsDraggingView(root, x, y, picked_idx)
+        view = PointsPickingView(root, x, y, picked_idx, add_remove_enabled=False)
         
-    def pick(self):
+    def pick_events(self):
         path, item = self.get_full_path()
         y = self.get_data(self.data, path)
         # try:
@@ -206,9 +207,16 @@ class DataViewer:
         # except: 
         #     x = np.arange(len(y))
         x = np.arange(len(y))
+        save_path = path[:path.rfind('/')+1] + "event_indices"
         picked_idx = []
-        pointsPickingView = PointsPickingView(root, x, y, picked_idx)
+        view = PointsPickingView(root, x, y, picked_idx, add_remove_enabled=True, callback=lambda data: self.set_data(self.data, save_path, data, add_key=True))
         
+    
+    # def on_test(self):
+    #     selected_item = self.data_tree.selection()
+    #     path, item = self.get_full_path()
+    #     data = self.get_data(self.data, path)
+    #     test_view = TestDataUpdatingView(self, data, path, self.set_data)
 
 
 if __name__ == "__main__":

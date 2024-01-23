@@ -7,10 +7,16 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 class PointsPickingView(tk.Toplevel):
-    def __init__(self, root, x, y, picked_idx):
+    def __init__(self, root, x, y, picked_idx, add_remove_enabled=False, callback=None):
         super().__init__(root)
         self.root = root
         self.root.title("Matplotlib Picker View")
+
+        # Buttons
+
+        self.callback = callback
+        self.open_button = tk.Button(self, text="Save", command=lambda:self.callback(self.picked_idx))
+        self.open_button.pack(side=tk.TOP, padx=5)
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig, self.ax = plt.subplots()
@@ -23,7 +29,7 @@ class PointsPickingView(tk.Toplevel):
         toolbar_frame.pack(side=tk.BOTTOM, fill=tk.X)
         toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
-        
+
         self.canvas_widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=1)
 
         # Master curve
@@ -32,13 +38,13 @@ class PointsPickingView(tk.Toplevel):
         self.ax.plot(self.x_values, self.y_values, '.-', color='C0', zorder=-100)
 
         # Data points
+        self.add_remove_enabled = add_remove_enabled
         self.picked_idx = picked_idx
         self.markers = []
         self.offset = [0, 0]
         self.mouse_button_pressed = None
         self.current_artist = None
         self.currently_dragging = False
-
         self.plot_data_points()
 
         # Event bindings
@@ -66,7 +72,7 @@ class PointsPickingView(tk.Toplevel):
             self.current_artist = event.artist
             if isinstance(event.artist, patches.Ellipse):
                 if event.mouseevent.dblclick:
-                    if self.mouse_button_pressed == "right":
+                    if self.add_remove_enabled and self.mouse_button_pressed == "right":
                         i = int(self.current_artist.get_label())
                         self.markers.remove(self.current_artist)
                         self.current_artist.remove()
@@ -101,11 +107,9 @@ class PointsPickingView(tk.Toplevel):
 
     def on_press(self, event):
         self.currently_dragging = True
-        if event.button == 3:
-            self.mouse_button_pressed = "right"
-        elif event.button == 1:
+        if event.button == 1:
             self.mouse_button_pressed = "left"
-            if event.dblclick:
+            if event.dblclick and self.add_remove_enabled:
                 width, height = self.get_circle_dims()
                 xl = self.ax.get_xlim()
                 yl = self.ax.get_ylim()
@@ -117,6 +121,9 @@ class PointsPickingView(tk.Toplevel):
                 self.markers.append(marker)
                 self.picked_idx.append(idx)
                 self.canvas.draw()
+        # elif event.button == 3:
+        else:
+            self.mouse_button_pressed = "right"
 
     def on_release(self, event):
         self.current_artist = None

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 
-class InteractiveSineCurveView(tk.Toplevel):
+class MatplotlibPickerView(tk.Toplevel):
     def __init__(self, root):
         super().__init__(root)
         self.root = root
@@ -36,11 +36,15 @@ class InteractiveSineCurveView(tk.Toplevel):
         self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
         self.fig.canvas.mpl_connect('button_press_event', self.on_button_press)
 
+        # Bind the configure event for window resizing
+        self.root.bind("<Configure>", self.on_configure)
+
     def plot_data_points(self):
+        width, height = self.get_circle_dims()
         for x, y in self.data_points:
             size_x = (self.ax.get_xlim()[1] - self.ax.get_xlim()[0]) * 0.02
             size_y = (self.ax.get_ylim()[1] - self.ax.get_ylim()[0]) * 0.02
-            marker = patches.Ellipse((x, y), width=size_x, height=size_y, color='red', picker=5)
+            marker = patches.Ellipse((x, y), width=width, height=height, color='red', picker=5)
             self.ax.add_patch(marker)
             self.markers.append(marker)
 
@@ -68,9 +72,8 @@ class InteractiveSineCurveView(tk.Toplevel):
                 x = event.xdata
                 y = np.sin(x)
                 self.data_points.append((x, y))
-                size_x = (self.ax.get_xlim()[1] - self.ax.get_xlim()[0]) * 0.02
-                size_y = (self.ax.get_ylim()[1] - self.ax.get_ylim()[0]) * 0.02
-                marker = patches.Ellipse((x, y), width=size_x, height=size_y, color='red', picker=5)
+                width, height = self.get_circle_dims()
+                marker = patches.Ellipse((x, y), width=width, height=height, color='red', picker=5)
                 self.ax.add_patch(marker)
                 self.markers.append(marker)
                 self.canvas.draw()
@@ -84,7 +87,25 @@ class InteractiveSineCurveView(tk.Toplevel):
                         self.data_points.remove((marker.center[0], marker.center[1]))
                         self.canvas.draw()
 
+    def get_circle_dims(self):
+        self.canvas.draw()
+        xl = self.ax.get_xlim()
+        yl = self.ax.get_ylim()
+        ratio = (yl[-1] - yl[0]) / (xl[-1] - xl[0])
+        fig_size = self.fig.get_size_inches()
+        ratio *= fig_size[0] / fig_size[1]
+        width = (xl[-1] - xl[0]) / fig_size[0] * 0.15
+        return width, width * ratio
+
+    def on_configure(self, event):
+        if self.ax:
+            width, height = self.get_circle_dims()
+            for point in self.selected_points:
+                point.set_width(width)
+                point.set_height(height)
+            self.canvas.draw()
+
 if __name__ == "__main__":
     root = tk.Tk()
-    interactive_view = InteractiveSineCurveView(root)
+    interactive_view = MatplotlibPickerView(root)
     root.mainloop()

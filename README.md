@@ -1,1 +1,1 @@
-# event-picker
+# event-explorer

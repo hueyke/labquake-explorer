@@ -13,10 +13,10 @@ class PointsPickingView(tk.Toplevel):
         self.root.title("Matplotlib Picker View")
 
         # Buttons
-
-        self.callback = callback
-        self.open_button = tk.Button(self, text="Save", command=lambda:self.callback(self.picked_idx))
-        self.open_button.pack(side=tk.TOP, padx=5)
+        if add_remove_enabled and callback:
+            self.callback = callback
+            self.open_button = tk.Button(self, text="Save", command=lambda:self.callback(self.picked_idx))
+            self.open_button.pack(side=tk.TOP, padx=5)
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig, self.ax = plt.subplots()

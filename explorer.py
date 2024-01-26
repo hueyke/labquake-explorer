@@ -24,10 +24,11 @@ class DataViewer:
         self.data_tree.bind("<Button-2>", self.on_right_click)
         self.data_tree.bind("<Button-3>", self.on_right_click)
 
-        # Context menu
-        self.context_menu = tk.Menu(root, tearoff=0)
-        self.context_menu.add_command(label="Min/Max", command=self.min_max)
-        self.context_menu.add_command(label="Pick Events", command=self.pick_events)
+        # Context menus
+        self.run_menu = tk.Menu(root, tearoff=0)
+        self.run_menu.add_command(label="Pick Events", command=self.pick_events)
+        self.event_menu = tk.Menu(root, tearoff=0)
+        self.event_menu.add_command(label="Min/Max", command=self.min_max)
 
         # Buttons
         self.open_button = tk.Button(
@@ -64,6 +65,8 @@ class DataViewer:
             self.data_tree.item(item, open=True)
             for lv2_item in self.data_tree.get_children(item):
                 self.data_tree.item(lv2_item, open=True)
+        
+        
 
     def build_tree_dict(self, parent_dict, parent_iid):
         self.data_tree.heading("#0", text=self.data['exp']['name'], anchor="w")
@@ -72,12 +75,8 @@ class DataViewer:
                 label_text = '%s: %s' % (item, parent_dict[item])
             elif type(parent_dict[item]) is dict:
                 label_text = item
-            elif type(parent_dict[item]) is int:
+            elif type(parent_dict[item]) is int or isinstance(parent_dict[item], np.integer):
                 label_text = '%s: %d' % (item, parent_dict[item])
-            # elif type(parent_dict[item]) is float:
-            #     label_text = '%s: %f' % (item, parent_dict[item])
-            # elif type(parent_dict[item]) is np.float64:
-            #     label_text = '%s: %f' % (item, parent_dict[item])
             elif isinstance(parent_dict[item], Number):
                 label_text = '%s: %f' % (item, parent_dict[item])
             elif type(parent_dict[item]) is np.ndarray:
@@ -102,9 +101,7 @@ class DataViewer:
             except:
                 if type(parent_array[i]) is dict:
                     label_text = '[%d]: dict' % i
-                # elif type(parent_array[i]) is np.float64:
-                #     label_text = '[%d]: %f' % (i, parent_array[i])
-                elif isinstance(parent_array[i], np.integer):
+                elif type(parent_array[i]) is int or isinstance(parent_array[i], np.integer):
                     label_text = '[%d]: %d' % (i, parent_array[i])
                 elif isinstance(parent_array[i], Number):
                     label_text = '[%d]: %f' % (i, parent_array[i])
@@ -139,9 +136,18 @@ class DataViewer:
             print(data)
 
     def on_right_click(self, event):
-        item = self.data_tree.selection()
+        item = self.data_tree.selection()[0]
         if item:
-            self.context_menu.post(event.x_root, event.y_root)
+            item_name = self.data_tree.item(item)['text'].split(':')[0]
+            parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
+            grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
+            if parent_name == "runs":
+                self.run_menu.post(event.x_root, event.y_root)
+            elif grandparent_name == "events":
+                item_label = self.data_tree.item(item)['text'].split(':')
+                if len(item_label) > 1 and "array" in item_label[1]:
+                    self.event_menu.post(event.x_root, event.y_root)
+            
 
     def get_full_path(self):
         item = self.data_tree.selection()[0]
@@ -210,8 +216,7 @@ class DataViewer:
         save_path = path[:path.rfind('/')+1] + "event_indices"
         picked_idx = []
         view = PointsPickingView(root, x, y, picked_idx, add_remove_enabled=True, callback=lambda data: self.set_data(self.data, save_path, data, add_key=True))
-        
-    
+
     # def on_test(self):
     #     selected_item = self.data_tree.selection()
     #     path, item = self.get_full_path()

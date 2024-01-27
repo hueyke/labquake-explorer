@@ -27,6 +27,7 @@ class DataViewer:
         # Context menus
         self.run_menu = tk.Menu(root, tearoff=0)
         self.run_menu.add_command(label="Pick Events", command=self.pick_events)
+        self.run_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
         self.event_menu = tk.Menu(root, tearoff=0)
         self.event_menu.add_command(label="Min/Max", command=self.min_max)
 
@@ -141,8 +142,10 @@ class DataViewer:
             item_name = self.data_tree.item(item)['text'].split(':')[0]
             parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
             grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
-            if parent_name == "runs":
-                self.run_menu.post(event.x_root, event.y_root)
+            if grandparent_name == "runs":
+                item_label = self.data_tree.item(item)['text'].split(':')
+                if len(item_label) > 1 and "array" in item_label[1]:
+                    self.run_menu.post(event.x_root, event.y_root)
             elif grandparent_name == "events":
                 item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
@@ -201,7 +204,8 @@ class DataViewer:
         idx_min = np.argmin(y)
         idx_max = np.argmax(y)
         picked_idx = [idx_max, idx_min]
-        view = PointsPickingView(root, x, y, picked_idx, add_remove_enabled=False)
+        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=False,
+                                 xlabel='index', ylabel=item, title=path)
         
     def pick_events(self):
         path, item = self.get_full_path()
@@ -215,7 +219,19 @@ class DataViewer:
         x = np.arange(len(y))
         save_path = path[:path.rfind('/')+1] + "event_indices"
         picked_idx = []
-        view = PointsPickingView(root, x, y, picked_idx, add_remove_enabled=True, callback=lambda data: self.set_data(self.data, save_path, data, add_key=True))
+        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=True, 
+                                 callback=lambda data: self.set_data(self.data, save_path, data, add_key=True),
+                                 xlabel='index', ylabel=item, title=path)
+        
+    def pick_strain_array_arrivals(self):
+        path, item = self.get_full_path()
+        y = self.get_data(self.data, path)
+        x = np.arange(len(y))
+        save_path = path[:path.rfind('/')+1] + "event_indices"
+        picked_idx = []
+        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=True, 
+                                 callback=lambda data: self.set_data(self.data, save_path, data, add_key=True),
+                                 xlabel='index', ylabel=item, title=path)
 
     # def on_test(self):
     #     selected_item = self.data_tree.selection()

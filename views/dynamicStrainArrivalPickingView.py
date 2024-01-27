@@ -6,10 +6,10 @@ import matplotlib.patches as patches
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-class PointsPickingView(tk.Toplevel):
-    def __init__(self, parent, x, y, picked_idx, add_remove_enabled=False, callback=None, xlabel=None, ylabel=None, title=None):
-        self.root = parent.root
-        super().__init__(self.root)
+class DynamicStrainArrivalPickingView(tk.Toplevel):
+    def __init__(self, root, x, y, picked_idx, add_remove_enabled=False, callback=None, xlabel=None, ylabel=None, title=None):
+        super().__init__(root)
+        self.root = root
         self.root.title("Matplotlib Picker View")
 
         # Buttons

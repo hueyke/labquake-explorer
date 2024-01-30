@@ -4,7 +4,7 @@ from tkinter import filedialog
 import numpy as np
 import os
 from numbers import Number
-from views.simplePlotView import SimplePlotView
+from views.simplePlottingView import SimplePlottingView
 from views.pointsPickingView import PointsPickingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
 
@@ -12,17 +12,16 @@ class EventExplorer:
     def __init__(self, root):
         self.root = root
         self.root.title("Event Explorer")
-        self.root.geometry(f"250x{self.root.winfo_screenheight()}+0+0")
+        self.root.geometry(f"300x{self.root.winfo_screenheight()}+0+0")
 
         # Treeview to display files and folders
         self.data_tree = ttk.Treeview(root)
         self.data_tree.heading("#0", text="[Data File]", anchor="w")
         self.data_tree.pack(expand=tk.YES, fill=tk.BOTH)
         
-        # Double-click callback on the Treeview item
+        # Click callback on the Treeview item
         self.data_tree.bind("<Double-1>", self.on_double_click)
-
-        # Right-click callback on the Treeview item
+        self.data_tree.bind("<Button-1>", self.on_left_click)
         self.data_tree.bind("<Button-2>", self.on_right_click)
         self.data_tree.bind("<Button-3>", self.on_right_click)
 
@@ -49,6 +48,7 @@ class EventExplorer:
 
         # initialize
         self.data = None
+        self.active_context_menu = None
 
 
     def load_file(self):
@@ -144,18 +144,21 @@ class EventExplorer:
         data = self.get_data(self.data, path)
         if type(data) is np.ndarray:
             print(f"plotting {item}")
-            figure_view_window = tk.Toplevel(self.root)
-            figure_view = SimplePlotView(figure_view_window)
-            figure_view.ax.plot(data)
-            figure_view.ax.set_xlabel('index')
-            figure_view.ax.set_ylabel(item)
-            figure_view.ax.set_title(path.replace('/[', '['))
+            view = SimplePlottingView(self)
+            view.ax.plot(data)
+            view.ax.set_xlabel('index')
+            view.ax.set_ylabel(item)
+            view.ax.set_title(path.replace('/[', '['))
         elif type(data) is dict:
             print('dict')
         elif type(data) is list:
             print('list')
         else:
             print(data)
+
+    def on_left_click(self, event):
+        if self.active_context_menu:
+            self.active_context_menu.unpost()
 
     def on_right_click(self, event):
         item = self.data_tree.selection()[0]
@@ -166,15 +169,19 @@ class EventExplorer:
             if grandparent_name == "runs":
                 item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
-                    self.run_menu.post(event.x_root, event.y_root)
+                    self.active_context_menu = self.run_menu
+                    self.active_context_menu.post(event.x_root, event.y_root)
             elif grandparent_name == "events":
                 item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
-                    self.event_array_menu.post(event.x_root, event.y_root)
+                    self.active_context_menu = self.event_array_menu
+                    self.active_context_menu.post(event.x_root, event.y_root)
                 else:
-                    self.event_menu.post(event.x_root, event.y_root)
+                    self.active_context_menu = self.event_menu
+                    self.active_context_menu.post(event.x_root, event.y_root)
             elif parent_name == "events":
-                self.event_menu.post(event.x_root, event.y_root)
+                self.active_context_menu = self.event_menu
+                self.active_context_menu.post(event.x_root, event.y_root)
             
 
     def get_full_path(self):

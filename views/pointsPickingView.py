@@ -10,7 +10,7 @@ class PointsPickingView(tk.Toplevel):
     def __init__(self, parent, x, y, picked_idx, add_remove_enabled=False, callback=None, xlabel=None, ylabel=None, title=None):
         self.root = parent.root
         super().__init__(self.root)
-        self.root.title("Matplotlib Picker View")
+        self.title("Points Picking View")
 
         # Buttons
         if add_remove_enabled and callback:
@@ -156,8 +156,12 @@ class PointsPickingView(tk.Toplevel):
 
 if __name__ == "__main__":
     root = tk.Tk()
+    class Parent:
+        def __init__(self, root):
+            self.root = root
     x = np.linspace(0, 2 * np.pi, 1000)
     y = np.sin(x)
     picked_idx = [100, 300, 500, 700, 900]
-    interactive_view = PointsPickingView(root, x, y, picked_idx)
+    parent = Parent(root)
+    interactive_view = PointsPickingView(parent, x, y, picked_idx)
     root.mainloop()

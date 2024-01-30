@@ -88,7 +88,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         linestyle = '.-'
 
         self.fig.clear()
-        gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 8])
+        gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 10])
         self.axs = gs.subplots(sharex=True)
         self.axs[0].set_ylabel(r'$\tau$ (MPa)')
         self.axs[1].set_ylabel(r'$\mu$')

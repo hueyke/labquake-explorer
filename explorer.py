@@ -8,12 +8,11 @@ from views.simplePlotView import SimplePlotView
 from views.pointsPickingView import PointsPickingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
 
-class DataViewer:
+class EventExplorer:
     def __init__(self, root):
         self.root = root
         self.root.title("Event Explorer")
-        screen_height = self.root.winfo_screenheight()
-        self.root.geometry(f"250x{screen_height}")
+        self.root.geometry(f"250x{self.root.winfo_screenheight()}+0+0")
 
         # Treeview to display files and folders
         self.data_tree = ttk.Treeview(root)
@@ -44,8 +43,13 @@ class DataViewer:
             root, text="Refresh", command=self.refresh_tree)
         self.plot_button.pack(side=tk.LEFT, padx=2)
 
+        self.save_button = tk.Button(
+            root, text="Save As", command=self.save_file, state="disabled")
+        self.save_button.pack(side=tk.RIGHT, padx=2)
+
         # initialize
         self.data = None
+
 
     def load_file(self):
         data_path = filedialog.askopenfilename(
@@ -59,6 +63,20 @@ class DataViewer:
             self.data = np.load(data_path, allow_pickle=True)
             self.data = {'exp': self.data['exp'][()]}
             self.refresh_tree()
+            self.data_path = data_path
+            self.save_button.configure(state="active")
+
+
+    def save_file(self):
+        data_path = filedialog.asksaveasfilename(
+            title="Save data file", 
+            confirmoverwrite=True,
+            defaultextension=".npz",
+            filetypes = (("NPZ File","*.npz"),("all files","*.*")))
+        if data_path:
+            np.savez(data_path, exp=self.data["exp"])
+            print(f"File saved: {data_path}")
+
     
     def refresh_tree(self):
         if not self.data:
@@ -70,7 +88,6 @@ class DataViewer:
             self.data_tree.item(item, open=True)
             for lv2_item in self.data_tree.get_children(item):
                 self.data_tree.item(lv2_item, open=True)
-        
         
 
     def build_tree_dict(self, parent_dict, parent_iid):
@@ -247,5 +264,7 @@ class DataViewer:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    data_viewer = DataViewer(root)
+    data_viewer = EventExplorer(root)
     root.mainloop()
+    if root:
+        root.destroy()

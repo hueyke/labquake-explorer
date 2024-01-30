@@ -14,8 +14,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.title("Pick Arrivals")
 
         # Configure row and column properties
-        self.grid_rowconfigure(2, weight=1)
-        self.grid_columnconfigure((0, 6), weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(5, weight=1)
 
 
         # Labels
@@ -40,7 +40,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
         # Button
         self.save_button = tk.Button(self, text="Save", command=self.save)
-        self.save_button.grid(row=0, column=5, padx=5, pady=5)
+        self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="w")
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig = plt.figure(figsize=(7, 7), constrained_layout=True)
@@ -88,7 +88,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         linestyle = '.-'
 
         self.fig.clear()
-        gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 4])
+        gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 8])
         self.axs = gs.subplots(sharex=True)
         self.axs[0].set_ylabel(r'$\tau$ (MPa)')
         self.axs[1].set_ylabel(r'$\mu$')
@@ -106,10 +106,16 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
         n_channels = y.shape[0]
         if self.enabled_channels is None:
-            self.enabled_channels = [i % 2 == 0 for i in range(n_channels)]
+            if "enabled_channels" in self.event:
+                self.enabled_channels = self.event["strain"]["enabled_channels"]
+            else:
+                self.enabled_channels = [i % 2 == 0 for i in range(n_channels)]
         if self.fitting_channels is None:
-            # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
-            self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]
+            if "fitting_channels" in self.event:
+                self.fitting_channels = self.event["strain"]["fitting_channels"]
+            else:
+                # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
+                self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]
         self.lines = [None for i in range(n_channels)]
 
         line_idx = 0
@@ -130,11 +136,26 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.fig.suptitle('%s run%02d event%d' % (self.parent.data['exp']['name'], 
                                              self.run_idx, 
                                              self.event_idx))
-        middle_idx = int(y.shape[1] / 2)
-        if self.picked_idx is None:
-            self.picked_idx = [middle_idx for i in range(n_channels)]
         
+        if self.picked_idx is None:
+            if "picked_idx" in self.event:
+                self.picked_idx = self.event["strain"]["picked_idx"]
+            else:
+                middle_idx = int(y.shape[1] / 2)
+                self.picked_idx = [middle_idx for i in range(n_channels)]
+        
+        if (not "locations" in self.event["strain"]) or (not len(self.event["strain"]["locations"]) == n_channels):
+            self.event["strain"]["locations"] = [10.5 + 12 * int(i / 2) for i in range(n_channels)]
+        self.draw_markers()
+            
+        # self.canvas.draw()
+
+    def draw_markers(self):
         width, height = self.get_circle_dims()
+        for marker in self.fitting_markers:
+            marker.remove()
+        for marker in self.not_fitting_markers:
+            marker.remove()
         self.fitting_markers = []
         self.not_fitting_markers = []
         for i in range(len(self.picked_idx)):
@@ -145,16 +166,15 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
                 color = 'red'
             else:
                 color = 'black'
-            loc = 10.5 + 12 * int(i / 2)
-            marker = patches.Ellipse((tt[idx], y[i, idx]*ratios[i] + loc), width=width, height=height, color=color, fill=False, lw=2, picker=8, label=str(i))
+            (x , y) = self.lines[i][0].get_data()
+            marker = patches.Ellipse((x[idx], y[idx]), width=width, height=height, color=color, fill=False, lw=2, picker=8, label=str(i))
             self.axs[4].add_patch(marker)
             if self.fitting_channels[i]:
                 self.fitting_markers.append(marker)
             else:
                 self.not_fitting_markers.append(marker)
-            
-
         self.canvas.draw()
+
 
     def on_pick(self, event):
         if self.current_artist is None:
@@ -236,7 +256,10 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.cf_label.configure(text=f"Cf = {self.rupture_speed:.2e} m/s")
     
     def save(self):
-        pass
+        self.event["strain"]["enabled_channels"] = self.enabled_channels
+        self.event["strain"]["fitting_channels"] = self.fitting_channels
+        self.event["strain"]["rupture_speed"] = self.rupture_speed
+        self.event["strain"]["picked_idx"] = self.picked_idx
 
     def init_event_combobox(self):
         n_events = len(self.parent.data['exp']['runs'][self.run_idx]['events'])
@@ -249,14 +272,14 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.enabled_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.enabled_channels_mb.items[i].set(self.enabled_channels[i])
-            self.enabled_channels_mb.menu.add_checkbutton( label="channel %d" %i, variable=self.enabled_channels_mb.items[i])
+            self.enabled_channels_mb.menu.add_checkbutton( label="channel %d" %i, variable=self.enabled_channels_mb.items[i], command=self.enabled_channels_changed)
 
     def init_fitting_channels_mb(self):
         n = len(self.fitting_channels)
         self.fitting_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.fitting_channels_mb.items[i].set(self.fitting_channels[i])
-            self.fitting_channels_mb.menu.add_checkbutton( label="channel %d" %i, variable=self.fitting_channels_mb.items[i])
+            self.fitting_channels_mb.menu.add_checkbutton( label="channel %d" %i, variable=self.fitting_channels_mb.items[i], command=self.fitting_channels_changed)
 
     def on_selected_event_changed(self, event):
         self.event_idx = int(self.event_combobox.get())
@@ -282,9 +305,26 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.rupture_speed = None
         self.fitted_line = None
         self.plot()
-        self.update_fitted_line()
         self.init_enabled_channels_mb()
         self.init_fitting_channels_mb()
+        self.update_fitted_line()
+
+    def enabled_channels_changed(self):
+        print('on_enabled_channels_changed')
+        n = len(self.enabled_channels)
+        for i in range(n):
+            self.enabled_channels[i] = self.enabled_channels_mb.items[i].get()
+        self.plot()
+        self.update_fitted_line()
+
+    def fitting_channels_changed(self):
+        print('on_fitting_channels_changed')
+        n = len(self.fitting_channels)
+        for i in range(n):
+            self.fitting_channels[i] = self.fitting_channels_mb.items[i].get()
+        self.draw_markers()
+        self.update_fitted_line()
+
 
 if __name__ == "__main__":
     pass

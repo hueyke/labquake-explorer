@@ -6,11 +6,14 @@ import os
 from numbers import Number
 from views.simplePlotView import SimplePlotView
 from views.pointsPickingView import PointsPickingView
+from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
 
 class DataViewer:
     def __init__(self, root):
         self.root = root
-        self.root.title("Data Viewer")
+        self.root.title("Event Explorer")
+        screen_height = self.root.winfo_screenheight()
+        self.root.geometry(f"250x{screen_height}")
 
         # Treeview to display files and folders
         self.data_tree = ttk.Treeview(root)
@@ -27,18 +30,19 @@ class DataViewer:
         # Context menus
         self.run_menu = tk.Menu(root, tearoff=0)
         self.run_menu.add_command(label="Pick Events", command=self.pick_events)
-        self.run_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
         self.event_menu = tk.Menu(root, tearoff=0)
-        self.event_menu.add_command(label="Min/Max", command=self.min_max)
+        self.event_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
+        self.event_array_menu = tk.Menu(root, tearoff=0)
+        self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
 
         # Buttons
         self.open_button = tk.Button(
             root, text="Load", command=self.load_file)
-        self.open_button.pack(side=tk.LEFT, padx=5)
+        self.open_button.pack(side=tk.LEFT, padx=2)
 
         self.plot_button = tk.Button(
             root, text="Refresh", command=self.refresh_tree)
-        self.plot_button.pack(side=tk.LEFT, padx=5)
+        self.plot_button.pack(side=tk.LEFT, padx=2)
 
         # initialize
         self.data = None
@@ -149,7 +153,11 @@ class DataViewer:
             elif grandparent_name == "events":
                 item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
+                    self.event_array_menu.post(event.x_root, event.y_root)
+                else:
                     self.event_menu.post(event.x_root, event.y_root)
+            elif parent_name == "events":
+                self.event_menu.post(event.x_root, event.y_root)
             
 
     def get_full_path(self):
@@ -225,13 +233,10 @@ class DataViewer:
         
     def pick_strain_array_arrivals(self):
         path, item = self.get_full_path()
-        y = self.get_data(self.data, path)
-        x = np.arange(len(y))
-        save_path = path[:path.rfind('/')+1] + "event_indices"
-        picked_idx = []
-        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=True, 
-                                 callback=lambda data: self.set_data(self.data, save_path, data, add_key=True),
-                                 xlabel='index', ylabel=item, title=path)
+        run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
+        temp = path[path.find('events/[')+8::]
+        event_idx = int(temp[:temp.find(']')])
+        view = DynamicStrainArrivalPickingView(self, run_idx, event_idx)
 
     # def on_test(self):
     #     selected_item = self.data_tree.selection()

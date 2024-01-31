@@ -260,6 +260,9 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.event["strain"]["fitting_channels"] = self.fitting_channels
         self.event["strain"]["rupture_speed"] = self.rupture_speed
         self.event["strain"]["picked_idx"] = self.picked_idx
+        self.event["strain"]["rupture_arrival_time"] = np.array([self.event["strain"]["time"][i] for i in self.picked_idx])
+        self.parent.refresh_tree()
+        print(f"Saved runs[{self.run_idx}]/events[{self.event_idx}] to data.")
 
     def init_event_combobox(self):
         n_events = len(self.parent.data['runs'][self.run_idx]['events'])

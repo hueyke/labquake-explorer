@@ -15,16 +15,12 @@ class EventExplorer:
         self.root.title("Event Explorer")
         self.root.geometry(f"300x{self.root.winfo_screenheight()-80}+40+40")
 
-        # Treeview to display files and folders
-        self.data_tree = ttk.Treeview(root)
-        self.data_tree.heading("#0", text="[Data File]", anchor="w")
-        self.data_tree.pack(expand=tk.YES, fill=tk.BOTH)
-        
-        # Click callback on the Treeview item
-        self.data_tree.bind("<Double-1>", self.on_double_click)
-        self.data_tree.bind("<Button-1>", self.on_left_click)
-        self.data_tree.bind("<Button-2>", self.on_right_click)
-        self.data_tree.bind("<Button-3>", self.on_right_click)
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(2, weight=1)
+
+        # Treeview
+        self.data_tree = None
+        self.init_data_tree()
 
         # Context menus
         self.run_menu = tk.Menu(root, tearoff=0)
@@ -37,15 +33,15 @@ class EventExplorer:
         # Buttons
         self.open_button = tk.Button(
             root, text="Load", command=self.load_file)
-        self.open_button.pack(side=tk.LEFT, padx=2)
+        self.open_button.grid(row=1, column=0, padx=2, pady=2, sticky="w")
 
         self.plot_button = tk.Button(
             root, text="Refresh", command=self.refresh_tree)
-        self.plot_button.pack(side=tk.LEFT, padx=2)
+        self.plot_button.grid(row=1, column=1, padx=2, pady=2, sticky="w")
 
         self.save_button = tk.Button(
             root, text="Save As", command=self.save_file, state="disabled")
-        self.save_button.pack(side=tk.RIGHT, padx=2)
+        self.save_button.grid(row=1, column=3, padx=2, pady=2, sticky="e")
 
         # initialize
         self.data = None
@@ -57,8 +53,6 @@ class EventExplorer:
             title="Select pre-processed file", 
             filetypes = (("NPZ File","*.npz"),("HDF5 File","*.h5 *.hdf5")))
         if data_path:
-            self.data_tree.delete(*self.data_tree.get_children())
-
             if data_path.lower().endswith(".npz"):
                 self.load_npz(data_path)
             elif data_path.lower().endswith(".h5"):
@@ -68,7 +62,9 @@ class EventExplorer:
             else:
                 print("File not supported.")
                 return
-            
+            selection = self.data_tree.selection()
+            for item in selection:
+                self.data_tree.selection_remove(item)
             self.refresh_tree()
             self.data_path = data_path
             self.save_button.configure(state="normal")
@@ -76,7 +72,7 @@ class EventExplorer:
     
     def load_npz(self, data_path):
         self.data = np.load(data_path, allow_pickle=True)
-        self.data = self.data["exp"][()]
+        self.data = self.data["experiment"][()]
 
 
     def load_hdf5(self, data_path):
@@ -95,20 +91,38 @@ class EventExplorer:
             filetypes = (("NPZ File","*.npz"), ("All Files", "*.*")))
         if data_path:
             # np.savez_compressed(data_path, exp=self.data)
-            np.savez(data_path, exp=self.data)
+            np.savez(data_path, experiment=self.data)
             print(f"File saved: {data_path}")
+
+
+    def init_data_tree(self):
+        if self.data_tree:
+            self.data_tree.destroy()
+        self.data_tree = ttk.Treeview(root)
+        self.data_tree.grid(row=0, column=0, columnspan=4, padx=2, pady=2, sticky="nsew")
+        self.data_tree.heading("#0", text="[Data File]", anchor="w")
+        self.data_tree.bind("<Double-1>", self.on_double_click)
+        self.data_tree.bind("<Button-1>", self.on_left_click)
+        self.data_tree.bind("<Button-2>", self.on_right_click)
+        self.data_tree.bind("<Button-3>", self.on_right_click)
 
     
     def refresh_tree(self):
+        selected_item = self.data_tree.selection()[0] if self.data_tree.selection() else None
         if not self.data:
             print('No data loaded.')
             return
-        self.data_tree.delete(*self.data_tree.get_children())
+        self.init_data_tree()
         self.build_tree_dict(self.data, "")
-        for item in self.data_tree.get_children(""):
-            self.data_tree.item(item, open=True)
-            # for lv2_item in self.data_tree.get_children(item):
-            #     self.data_tree.item(lv2_item, open=True)
+        if selected_item:
+            self.data_tree.focus(selected_item)
+            self.data_tree.selection_set(selected_item)
+            self.data_tree.see(selected_item)
+        else:
+            for item in self.data_tree.get_children(""):
+                self.data_tree.item(item, open=True)
+                # for lv2_item in self.data_tree.get_children(item):
+                #     self.data_tree.item(lv2_item, open=True)
         
 
     def build_tree_dict(self, parent_dict, parent_iid):

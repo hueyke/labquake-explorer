@@ -67,7 +67,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.fitting_markers = []
         self.not_fitting_markers = []
         self.offset = [0, 0]
-        self.mouse_button_pressed = None
         self.current_artist = None
         self.currently_dragging = False
         self.rupture_speed = None
@@ -116,6 +115,9 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             else:
                 # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
                 self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]
+        if (not "locations" in self.event["strain"]) or (not len(self.event["strain"]["locations"]) == n_channels):
+            self.event["strain"]["locations"] = [10.5 + 12 * int(i / 2) for i in range(n_channels)]
+        
         self.lines = [None for i in range(n_channels)]
 
         line_idx = 0
@@ -123,7 +125,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         for i in range(y.shape[0]):
             if not self.enabled_channels[i]:
                 continue
-            loc = 10.5 + 12 * int(i / 2)
+            loc = self.event["strain"]["locations"][i]
             self.axs[4].plot([tt[0], tt[-1]], [loc, loc], 'k:', zorder=-101)
             ratios[i] = 12 / (y[i, :].max() - y[i, :].min())
             self.lines[i] = self.axs[4].plot(tt, y[i, :] * ratios[i] + loc, color='C%d' % line_idx, zorder=-100)
@@ -134,8 +136,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.axs[0].set_xlim(tt[0], tt[-1])
         
         self.fig.suptitle('%s run%02d event%d' % (self.parent.data['name'], 
-                                             self.run_idx, 
-                                             self.event_idx))
+                                                  self.run_idx, 
+                                                  self.event_idx))
         
         if self.picked_idx is None:
             if "picked_idx" in self.event:
@@ -143,12 +145,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             else:
                 middle_idx = int(y.shape[1] / 2)
                 self.picked_idx = [middle_idx for i in range(n_channels)]
-        
-        if (not "locations" in self.event["strain"]) or (not len(self.event["strain"]["locations"]) == n_channels):
-            self.event["strain"]["locations"] = [10.5 + 12 * int(i / 2) for i in range(n_channels)]
         self.draw_markers()
-            
-        # self.canvas.draw()
 
     def draw_markers(self):
         width, height = self.get_circle_dims()
@@ -200,16 +197,11 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
                 (x , y) = self.lines[channel][0].get_data()
                 idx = np.argmin(((x - cx) / xw) ** 2 + ((y - cy) / yw) ** 2)
                 self.current_artist.set_center((x[idx], y[idx]))
-                self.update_fitted_line()
-                self.canvas.draw()
                 self.picked_idx[channel] = idx
+                self.update_fitted_line()
 
     def on_press(self, event):
         self.currently_dragging = True
-        if event.button == 1:
-            self.mouse_button_pressed = "left"
-        else:
-            self.mouse_button_pressed = "right"
 
     def on_release(self, event):
         self.current_artist = None
@@ -217,7 +209,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.on_resize(None)
 
     def get_circle_dims(self):
-        self.canvas.draw()
         xl = self.axs[4].get_xlim()
         yl = self.axs[4].get_ylim()
         ratio = (yl[-1] - yl[0]) / (xl[-1] - xl[0])
@@ -242,23 +233,26 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         x = np.empty(len(self.fitting_markers))
         y = np.empty(len(self.fitting_markers))
         for i in range(len(self.fitting_markers)):
-            xy = self.fitting_markers[i].get_center()
-            x[i] = xy[0]
-            y[i] = xy[1]
+            idx = int(self.fitting_markers[i].get_label())
+            x[i] = self.fitting_markers[i].get_center()[0]
+            y[i] = self.event["strain"]["locations"][idx]
         a = np.polyfit(y, x, 1)
         if self.fitted_line:
             self.fitted_line[0].remove()
-        self.fitted_line = self.axs[4].plot(a[0] * y + a[1], y, 'r-')
+        self.fitted_line = self.axs[4].plot(a[0] * y + a[1], y, 'r--')
         self.canvas.draw()
         warnings.filterwarnings("ignore", message="divide by zero encountered in double_scalars")
         self.rupture_speed = -1e-3 / a[0]
         warnings.filterwarnings("default", message="divide by zero encountered in double_scalars")
         self.cf_label.configure(text=f"Cf = {self.rupture_speed:.2e} m/s")
+        self.update()
     
     def save(self):
         self.event["strain"]["enabled_channels"] = self.enabled_channels
         self.event["strain"]["fitting_channels"] = self.fitting_channels
-        self.event["strain"]["rupture_speed"] = self.rupture_speed
+        self.event["rupture_speed"] = self.rupture_speed
+        if "rupture_speed" in self.event["strain"]:
+            self.event["strain"].pop("rupture_speed")
         self.event["strain"]["picked_idx"] = self.picked_idx
         self.event["strain"]["rupture_arrival_time"] = np.array([self.event["strain"]["time"][i] for i in self.picked_idx])
         self.parent.refresh_tree()
@@ -272,6 +266,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def init_enabled_channels_mb(self):
         n = len(self.enabled_channels)
+        self.enabled_channels_mb.menu.delete(0, 'end')
         self.enabled_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.enabled_channels_mb.items[i].set(self.enabled_channels[i])
@@ -279,6 +274,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def init_fitting_channels_mb(self):
         n = len(self.fitting_channels)
+        self.fitting_channels_mb.menu.delete(0, 'end')
         self.fitting_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.fitting_channels_mb.items[i].set(self.fitting_channels[i])
@@ -302,7 +298,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.fitting_markers = []
         self.not_fitting_markers = []
         self.offset = [0, 0]
-        self.mouse_button_pressed = None
         self.current_artist = None
         self.currently_dragging = False
         self.rupture_speed = None

@@ -60,7 +60,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.run_idx = run_idx
         self.event_idx = event_idx
         self.event = None
-        self.event = self.parent.data['exp']['runs'][self.run_idx]['events'][self.event_idx]
+        self.event = self.parent.data['runs'][self.run_idx]['events'][self.event_idx]
         self.enabled_channels = None
         self.fitting_channels = None
         self.picked_idx = None
@@ -133,7 +133,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.axs[4].set_ylim(105, 0)
         self.axs[0].set_xlim(tt[0], tt[-1])
         
-        self.fig.suptitle('%s run%02d event%d' % (self.parent.data['exp']['name'], 
+        self.fig.suptitle('%s run%02d event%d' % (self.parent.data['name'], 
                                              self.run_idx, 
                                              self.event_idx))
         
@@ -262,7 +262,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.event["strain"]["picked_idx"] = self.picked_idx
 
     def init_event_combobox(self):
-        n_events = len(self.parent.data['exp']['runs'][self.run_idx]['events'])
+        n_events = len(self.parent.data['runs'][self.run_idx]['events'])
         options = [f"{i}" for i in range(n_events)]
         self.event_combobox.config(values=options, state='readonly')
         self.event_combobox.current(self.event_idx)
@@ -283,7 +283,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def on_selected_event_changed(self, event):
         self.event_idx = int(self.event_combobox.get())
-        self.event = self.parent.data['exp']['runs'][self.run_idx]['events'][self.event_idx]
+        self.event = self.parent.data['runs'][self.run_idx]['events'][self.event_idx]
         if 'enabled_channels' in self.event['strain']:
             self.enabled_channels = self.event['strain']['enabled_channels']
         else:
@@ -310,7 +310,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.update_fitted_line()
 
     def enabled_channels_changed(self):
-        print('on_enabled_channels_changed')
         n = len(self.enabled_channels)
         for i in range(n):
             self.enabled_channels[i] = self.enabled_channels_mb.items[i].get()
@@ -318,7 +317,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.update_fitted_line()
 
     def fitting_channels_changed(self):
-        print('on_fitting_channels_changed')
         n = len(self.fitting_channels)
         for i in range(n):
             self.fitting_channels[i] = self.fitting_channels_mb.items[i].get()

@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import filedialog
 import numpy as np
 import os
+import h5py
 from numbers import Number
 from views.simplePlottingView import SimplePlottingView
 from views.pointsPickingView import PointsPickingView
@@ -12,7 +13,7 @@ class EventExplorer:
     def __init__(self, root):
         self.root = root
         self.root.title("Event Explorer")
-        self.root.geometry(f"300x{self.root.winfo_screenheight()}+0+0")
+        self.root.geometry(f"300x{self.root.winfo_screenheight()-80}+40+40")
 
         # Treeview to display files and folders
         self.data_tree = ttk.Treeview(root)
@@ -54,17 +55,36 @@ class EventExplorer:
     def load_file(self):
         data_path = filedialog.askopenfilename(
             title="Select pre-processed file", 
-            filetypes = (("NPZ File","*.npz"),("all files","*.*")))
+            filetypes = (("NPZ File","*.npz"),("HDF5 File","*.h5 *.hdf5")))
         if data_path:
-            # Clear existing tree items
             self.data_tree.delete(*self.data_tree.get_children())
 
-            # Display files and folders in the treeview
-            self.data = np.load(data_path, allow_pickle=True)
-            self.data = {'exp': self.data['exp'][()]}
+            if data_path.lower().endswith(".npz"):
+                self.load_npz(data_path)
+            elif data_path.lower().endswith(".h5"):
+                self.load_hdf5(data_path)
+            elif data_path.lower().endswith(".hdf5"):
+                self.load_hdf5(data_path)
+            else:
+                print("File not supported.")
+                return
+            
             self.refresh_tree()
             self.data_path = data_path
-            self.save_button.configure(state="active")
+            self.save_button.configure(state="normal")
+
+    
+    def load_npz(self, data_path):
+        self.data = np.load(data_path, allow_pickle=True)
+        self.data = self.data["exp"][()]
+
+
+    def load_hdf5(self, data_path):
+        h5data = h5py.File(data_path, 'r')
+        self.data = dict()
+        self.data["name"] = data_path.split("/")[-1].split(".")[0].split("_proc")[0]
+        for key in list(h5data.keys()):
+            self.data[key] = np.array(h5data[key])
 
 
     def save_file(self):
@@ -72,9 +92,10 @@ class EventExplorer:
             title="Save data file", 
             confirmoverwrite=True,
             defaultextension=".npz",
-            filetypes = (("NPZ File","*.npz"),("all files","*.*")))
+            filetypes = (("NPZ File","*.npz"), ("All Files", "*.*")))
         if data_path:
-            np.savez(data_path, exp=self.data["exp"])
+            # np.savez_compressed(data_path, exp=self.data)
+            np.savez(data_path, exp=self.data)
             print(f"File saved: {data_path}")
 
     
@@ -86,12 +107,12 @@ class EventExplorer:
         self.build_tree_dict(self.data, "")
         for item in self.data_tree.get_children(""):
             self.data_tree.item(item, open=True)
-            for lv2_item in self.data_tree.get_children(item):
-                self.data_tree.item(lv2_item, open=True)
+            # for lv2_item in self.data_tree.get_children(item):
+            #     self.data_tree.item(lv2_item, open=True)
         
 
     def build_tree_dict(self, parent_dict, parent_iid):
-        self.data_tree.heading("#0", text=self.data['exp']['name'], anchor="w")
+        self.data_tree.heading("#0", text=self.data["name"], anchor="w")
         for item in parent_dict.keys():
             if type(parent_dict[item]) is str:
                 label_text = '%s: %s' % (item, parent_dict[item])
@@ -273,5 +294,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     data_viewer = EventExplorer(root)
     root.mainloop()
-    if root:
-        root.destroy()

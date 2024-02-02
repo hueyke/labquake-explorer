@@ -21,56 +21,60 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.grid_columnconfigure(5, weight=1)
 
 
-        # Labels
+        # [0, 0]
         ttk.Label(self, text="Event Index:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.cf_label = ttk.Label(self, text="Cf=0.00m/s")
-        self.cf_label.grid(row=0, column=4, padx=5, pady=5, sticky="e")
-        ttk.Label(self, text="Filter:", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="ew")
-        ttk.Label(self, text="Window length", justify="right").grid(row=3, column=2, padx=5, pady=5, sticky="w")
-
-        # Comboboxes
         self.event_combobox = ttk.Combobox(self, width=10)
+        # [0, 1]
         self.event_combobox.grid(row=0, column=1, padx=5, pady=5)
-        self.filter_combobox = ttk.Combobox(self, state="disabled")
-        self.filter_combobox.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
-        self.filter_combobox["values"] = ("savgol_filter")
-        self.filter_combobox.current(0)
-
-        # Checkbox
         self.enabled_channels_mb = tk.Menubutton(self, text="Enabled Channels")
+        # [0, 2]
         self.enabled_channels_mb.grid(row=0, column=2, padx=5, pady=5)
         self.enabled_channels_mb.menu = tk.Menu(self.enabled_channels_mb, tearoff=0)
         self.enabled_channels_mb["menu"] = self.enabled_channels_mb.menu
-
         self.fitting_channels_mb = tk.Menubutton(self, text="Fitting Channels")
+        # [0, 3]
         self.fitting_channels_mb.grid(row=0, column=3, padx=5, pady=5)
         self.fitting_channels_mb.menu = tk.Menu(self.fitting_channels_mb, tearoff=0)
         self.fitting_channels_mb["menu"] = self.fitting_channels_mb.menu
-
-        # Button
+        # [0, 4]
+        self.cf_label = ttk.Label(self, text="Cf=0.00m/s")
+        self.cf_label.grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        # [0, 6]
         self.save_button = tk.Button(self, text="Save", command=self.save)
         self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="w")
-        self.filter_toggle = tk.Button(self, text="On", command=self.toggle_filter)
-        self.filter_toggle.grid(row=3, column=4, padx=5, pady=5, sticky="e")
 
-        # Spinbox
-        self.filter_window_length = tk.StringVar(value=101)
-        self.filter_window_length_box = ttk.Spinbox(self, from_=2, to=201, increment=2, textvariable=self.filter_window_length, command=self.on_filter_window_length_box_changed)
-        self.filter_window_length_box.grid(row=3, column=3, padx=5, pady=5, sticky="ew")
-
-        # Matplotlib Figure and Tkinter Canvas
+        # [1, 0::]
         self.fig = plt.figure(figsize=(7, 7), constrained_layout=True)
-
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.grid(row=1, column=0, columnspan=7, padx=5, pady=5, sticky="nsew")
+        self.canvas_widget.grid(row=1, column=0, columnspan=8, padx=5, pady=5, sticky="nsew")
         self.axs = None
-        
-        # Navigation toolbar for zooming and panning
+
+
+        # [2, 0::]
         toolbar_frame = ttk.Frame(self)
         toolbar_frame.grid(row=2, column=0, columnspan=7, padx=0, pady=0, sticky="ew")
         toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
+
+
+        # [3, 0]
+        ttk.Label(self, text="Filter:", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        self.filter_combobox = ttk.Combobox(self, state="disabled")
+        # [3, 1]
+        self.filter_combobox.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        self.filter_combobox["values"] = ("scipy.savgol_filter")
+        self.filter_combobox.current(0)
+        # [3, 2]
+        ttk.Label(self, text="Window length", justify="right").grid(row=3, column=2, padx=5, pady=5, sticky="w")
+        # [3, 3]
+        self.filter_window_length = tk.StringVar(value=101)
+        self.filter_window_length_box = ttk.Spinbox(self, from_=2, to=201, increment=2, textvariable=self.filter_window_length)
+        self.filter_window_length_box.grid(row=3, column=3, padx=5, pady=5, sticky="ew")
+        # [3, 4]
+        self.filter_toggle = tk.Button(self, text="On", relief="sunken", command=self.toggle_filter)
+        self.filter_toggle.grid(row=3, column=4, padx=5, pady=5, sticky="ew")
+        
 
         # Data
         self.run_idx = run_idx
@@ -335,6 +339,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.init_enabled_channels_mb()
         self.init_fitting_channels_mb()
         self.update_fitted_line()
+    
 
     def enabled_channels_changed(self):
         n = len(self.enabled_channels)
@@ -354,14 +359,18 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.filtering = not self.filtering
         if self.filtering:
             self.filter_toggle.config(text="On")
+            self.filter_toggle.config(relief="sunken")
         else:
             self.filter_toggle.config(text="Off")
-        self.on_selected_event_changed()
+            self.filter_toggle.config(relief="raised")
+        self.plot()
+        self.update_fitted_line()
 
     def on_filter_window_length_box_changed(self, event=None):
         if int(self.filter_window_length.get()) % 2 == 0:
             self.filter_window_length.set(int())
-        self.on_selected_event_changed()
+        self.plot()
+        self.update_fitted_line()
 
 if __name__ == "__main__":
     pass

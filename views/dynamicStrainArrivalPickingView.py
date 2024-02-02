@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import numpy as np
+import scipy
 from scipy import signal
 import warnings
 
@@ -24,14 +25,16 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         ttk.Label(self, text="Event Index:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.cf_label = ttk.Label(self, text="Cf=0.00m/s")
         self.cf_label.grid(row=0, column=4, padx=5, pady=5, sticky="e")
-        ttk.Label(self, text="Filter:", anchor="e", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(self, text="Filter:", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        ttk.Label(self, text="Window length", justify="right").grid(row=3, column=2, padx=5, pady=5, sticky="w")
 
         # Comboboxes
         self.event_combobox = ttk.Combobox(self, width=10)
         self.event_combobox.grid(row=0, column=1, padx=5, pady=5)
-        self.filter_combobox = ttk.Combobox(self, width=10, state="disabled")
-        self.filter_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.filter_combobox = ttk.Combobox(self, state="disabled")
+        self.filter_combobox.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
         self.filter_combobox["values"] = ("savgol_filter")
+        self.filter_combobox.current(0)
 
         # Checkbox
         self.enabled_channels_mb = tk.Menubutton(self, text="Enabled Channels")
@@ -48,7 +51,12 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.save_button = tk.Button(self, text="Save", command=self.save)
         self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="w")
         self.filter_toggle = tk.Button(self, text="On", command=self.toggle_filter)
-        self.filter_toggle.grid(row=3, column=6, padx=5, pady=5)
+        self.filter_toggle.grid(row=3, column=4, padx=5, pady=5, sticky="e")
+
+        # Spinbox
+        self.filter_window_length = tk.StringVar(value=101)
+        self.filter_window_length_box = ttk.Spinbox(self, from_=2, to=201, increment=2, textvariable=self.filter_window_length, command=self.on_filter_window_length_box_changed)
+        self.filter_window_length_box.grid(row=3, column=3, padx=5, pady=5, sticky="ew")
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig = plt.figure(figsize=(7, 7), constrained_layout=True)
@@ -80,7 +88,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.fitted_line = None
         self.filtering = True
         self.init_event_combobox()
-        self.on_selected_event_changed(None)
+        self.on_selected_event_changed()
+        self.on_resize()
 
         # Event bindings
         self.fig.canvas.mpl_connect("pick_event", self.on_pick)
@@ -90,6 +99,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.fig.canvas.mpl_connect("resize_event", self.on_resize)
         self.fig.canvas.mpl_connect("scroll_event", self.on_resize)
         self.event_combobox.bind("<<ComboboxSelected>>", self.on_selected_event_changed)
+        self.filter_window_length_box.bind("<ButtonRelease>", self.on_filter_window_length_box_changed)
 
     def plot(self):
         linestyle = ".-"
@@ -109,7 +119,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.axs[3].plot(t, self.event["displacement"] - self.event["displacement"][0], linestyle, color="C0")
 
         tt = self.event["strain"]["original"]["time"] - self.event["event_time"]
-        y = self.event["strain"]["original"]["raw"]
+        y = np.copy(self.event["strain"]["original"]["raw"])
 
         n_channels = y.shape[0]
         if self.enabled_channels is None:
@@ -128,6 +138,10 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         
         self.lines = [None for i in range(n_channels)]
 
+        if self.filtering:
+            nf = int(self.filter_window_length.get())
+            for i in range(y.shape[0]):
+                y[i, :] = scipy.signal.savgol_filter(y[i, :], nf, 2)
         line_idx = 0
         ratios = np.ones(y.shape[0])
         for i in range(y.shape[0]):
@@ -195,18 +209,21 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         if self.current_artist is None:
             return
         if isinstance(self.current_artist, patches.Ellipse):
-                channel = int(self.current_artist.get_label())
-                dx, dy = self.offset
-                cx, cy = event.xdata + dx, event.ydata + dy
-                xl = self.axs[4].get_xlim()
-                yl = self.axs[4].get_ylim()
-                yw = yl[-1] - yl[0]
-                xw = xl[-1] - xl[0]
-                (x , y) = self.lines[channel][0].get_data()
-                idx = np.argmin(((x - cx) / xw) ** 2 + ((y - cy) / yw) ** 2)
-                self.current_artist.set_center((x[idx], y[idx]))
-                self.picked_idx[channel] = idx
-                self.update_fitted_line()
+                try:
+                    channel = int(self.current_artist.get_label())
+                    dx, dy = self.offset
+                    cx, cy = event.xdata + dx, event.ydata + dy
+                    xl = self.axs[4].get_xlim()
+                    yl = self.axs[4].get_ylim()
+                    yw = yl[-1] - yl[0]
+                    xw = xl[-1] - xl[0]
+                    (x , y) = self.lines[channel][0].get_data()
+                    idx = np.argmin(((x - cx) / xw) ** 2 + ((y - cy) / yw) ** 2)
+                    self.current_artist.set_center((x[idx], y[idx]))
+                    self.picked_idx[channel] = idx
+                    self.update_fitted_line()
+                except:
+                    pass
 
     def on_press(self, event):
         self.currently_dragging = True
@@ -214,9 +231,11 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
     def on_release(self, event):
         self.current_artist = None
         self.currently_dragging = False
-        self.on_resize(None)
+        self.on_resize()
 
     def get_circle_dims(self):
+        # self.update()
+        # self.canvas.draw()
         xl = self.axs[4].get_xlim()
         yl = self.axs[4].get_ylim()
         ratio = (yl[-1] - yl[0]) / (xl[-1] - xl[0])
@@ -226,7 +245,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         width = (xl[-1] - xl[0]) / ax_size[0] * 0.1 * self.fig.dpi
         return width, width * ratio
 
-    def on_resize(self, event):
+    def on_resize(self, event=None):
+        self.canvas.draw()
         if not self.axs is None:
             width, height = self.get_circle_dims()
             for marker in self.fitting_markers:
@@ -252,7 +272,10 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         warnings.filterwarnings("ignore", message="divide by zero encountered in double_scalars")
         self.rupture_speed = -1e-3 / a[0]
         warnings.filterwarnings("default", message="divide by zero encountered in double_scalars")
-        self.cf_label.configure(text=f"Cf = {self.rupture_speed:.2e} m/s")
+        if np.abs(self.rupture_speed) < 1e4:
+            self.cf_label.configure(text=f"Cf = {self.rupture_speed:.2f} m/s")
+        else:
+            self.cf_label.configure(text=f"Cf = {self.rupture_speed:.2e} m/s")
         self.update()
     
     def save(self):
@@ -286,7 +309,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             self.fitting_channels_mb.items[i].set(self.fitting_channels[i])
             self.fitting_channels_mb.menu.add_checkbutton( label="channel %d" %i, variable=self.fitting_channels_mb.items[i], command=self.fitting_channels_changed)
 
-    def on_selected_event_changed(self, event):
+    def on_selected_event_changed(self, event=None):
         self.event_idx = int(self.event_combobox.get())
         self.event = self.parent.data["runs"][self.run_idx]["events"][self.event_idx]
         if "enabled_channels" in self.event["strain"]:
@@ -333,7 +356,12 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             self.filter_toggle.config(text="On")
         else:
             self.filter_toggle.config(text="Off")
+        self.on_selected_event_changed()
 
+    def on_filter_window_length_box_changed(self, event=None):
+        if int(self.filter_window_length.get()) % 2 == 0:
+            self.filter_window_length.set(int())
+        self.on_selected_event_changed()
 
 if __name__ == "__main__":
     pass

@@ -88,11 +88,15 @@ class IndexPickingView(tk.Toplevel):
             self.ax.clear()
             self.data_y = self.parent.get_data(self.parent.data, self.item_y)
             self.ax.plot(self.data_y, zorder=-100)
+            self.ax.set_ylabel(self.item_y)
+            self.ax.set_xlabel("Index")
         else:
             self.ax.clear()
             self.data_x = self.parent.get_data(self.parent.data, self.item_x)
             self.data_y = self.parent.get_data(self.parent.data, self.item_y)
             self.ax.plot(self.data_x, self.data_y, zorder=-100)
+            self.ax.set_ylabel(self.item_y)
+            self.ax.set_xlabel(self.item_x)
         self.canvas.draw()
 
     def plot_picked_points(self):

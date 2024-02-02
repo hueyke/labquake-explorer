@@ -7,6 +7,7 @@ import h5py
 from numbers import Number
 from views.simplePlottingView import SimplePlottingView
 from views.pointsPickingView import PointsPickingView
+from views.indexPickingView import IndexPickingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
 
 class EventExplorer:
@@ -29,6 +30,9 @@ class EventExplorer:
         self.event_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
         self.event_array_menu = tk.Menu(root, tearoff=0)
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
+        # NEW
+        self.array_menu = tk.Menu(root, tearoff=0)
+        self.array_menu.add_command(label="Pick Indicies", command=self.pick_indicies)
 
         # Buttons
         self.open_button = tk.Button(
@@ -199,15 +203,14 @@ class EventExplorer:
         item = self.data_tree.selection()[0]
         if item:
             item_name = self.data_tree.item(item)['text'].split(':')[0]
+            item_label = self.data_tree.item(item)['text'].split(':')
             parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
             grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
             if grandparent_name == "runs":
-                item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
                     self.active_context_menu = self.run_menu
                     self.active_context_menu.post(event.x_root, event.y_root)
             elif grandparent_name == "events":
-                item_label = self.data_tree.item(item)['text'].split(':')
                 if len(item_label) > 1 and "array" in item_label[1]:
                     self.active_context_menu = self.event_array_menu
                     self.active_context_menu.post(event.x_root, event.y_root)
@@ -217,6 +220,11 @@ class EventExplorer:
             elif parent_name == "events":
                 self.active_context_menu = self.event_menu
                 self.active_context_menu.post(event.x_root, event.y_root)
+            # NEW
+            elif len(item_label) > 1 and "array" in item_label[1]:
+                self.active_context_menu = self.array_menu
+                self.active_context_menu.post(event.x_root, event.y_root)
+
             
 
     def get_full_path(self):
@@ -296,6 +304,11 @@ class EventExplorer:
         temp = path[path.find('events/[')+8::]
         event_idx = int(temp[:temp.find(']')])
         view = DynamicStrainArrivalPickingView(self, run_idx, event_idx)
+
+    def pick_indicies(self):
+        item = self.data_tree.selection()[0]
+        item_name = self.data_tree.item(item)['text'].split(':')[0]
+        view = IndexPickingView(self, item_y=item_name)
 
     # def on_test(self):
     #     selected_item = self.data_tree.selection()

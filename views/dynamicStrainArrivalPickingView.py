@@ -68,7 +68,6 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.run_idx = run_idx
         self.event_idx = event_idx
         self.event = None
-        self.event = self.parent.data['runs'][self.run_idx]['events'][self.event_idx]
         self.enabled_channels = None
         self.fitting_channels = None
         self.picked_idx = None
@@ -84,33 +83,33 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.on_selected_event_changed(None)
 
         # Event bindings
-        self.fig.canvas.mpl_connect('pick_event', self.on_pick)
-        self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.fig.canvas.mpl_connect('button_press_event', self.on_press)
-        self.fig.canvas.mpl_connect('button_release_event', self.on_release)
-        self.fig.canvas.mpl_connect('resize_event', self.on_resize)
-        self.fig.canvas.mpl_connect('scroll_event', self.on_resize)
+        self.fig.canvas.mpl_connect("pick_event", self.on_pick)
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_motion)
+        self.fig.canvas.mpl_connect("button_press_event", self.on_press)
+        self.fig.canvas.mpl_connect("button_release_event", self.on_release)
+        self.fig.canvas.mpl_connect("resize_event", self.on_resize)
+        self.fig.canvas.mpl_connect("scroll_event", self.on_resize)
         self.event_combobox.bind("<<ComboboxSelected>>", self.on_selected_event_changed)
 
     def plot(self):
-        linestyle = '.-'
+        linestyle = ".-"
 
         self.fig.clear()
         gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 10])
         self.axs = gs.subplots(sharex=True)
-        self.axs[0].set_ylabel(r'$\tau$ (MPa)')
-        self.axs[1].set_ylabel(r'$\mu$')
-        self.axs[2].set_ylabel(r'$\delta_\mathrm{LP}\ \mathrm{({\mu}m)}$')
-        self.axs[3].set_ylabel(r'$\delta\ \mathrm{({\mu}m)}$')
+        self.axs[0].set_ylabel(r"$\tau$ (MPa)")
+        self.axs[1].set_ylabel(r"$\mu$")
+        self.axs[2].set_ylabel(r"$\delta_\mathrm{LP}\ \mathrm{({\mu}m)}$")
+        self.axs[3].set_ylabel(r"$\delta\ \mathrm{({\mu}m)}$")
 
-        t = self.event['time'] - self.event['event_time']
-        self.axs[0].plot(t, self.event['shear_stress'], linestyle, color='C0')
-        self.axs[1].plot(t, self.event['friction'], linestyle, color='C0')
-        self.axs[2].plot(t, self.event['LP_displacement'] - self.event['LP_displacement'][0], linestyle, color='C0')
-        self.axs[3].plot(t, self.event['displacement'] - self.event['displacement'][0], linestyle, color='C0')
+        t = self.event["time"] - self.event["event_time"]
+        self.axs[0].plot(t, self.event["shear_stress"], linestyle, color="C0")
+        self.axs[1].plot(t, self.event["friction"], linestyle, color="C0")
+        self.axs[2].plot(t, self.event["LP_displacement"] - self.event["LP_displacement"][0], linestyle, color="C0")
+        self.axs[3].plot(t, self.event["displacement"] - self.event["displacement"][0], linestyle, color="C0")
 
-        tt = self.event['strain']['original']['time'] - self.event['event_time']
-        y = self.event['strain']['original']['raw']
+        tt = self.event["strain"]["original"]["time"] - self.event["event_time"]
+        y = self.event["strain"]["original"]["raw"]
 
         n_channels = y.shape[0]
         if self.enabled_channels is None:
@@ -135,22 +134,22 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             if not self.enabled_channels[i]:
                 continue
             loc = self.event["strain"]["locations"][i]
-            self.axs[4].plot([tt[0], tt[-1]], [loc, loc], 'k:', zorder=-101)
+            self.axs[4].plot([tt[0], tt[-1]], [loc, loc], "k:", zorder=-101)
             ratios[i] = 12 / (y[i, :].max() - y[i, :].min())
-            self.lines[i] = self.axs[4].plot(tt, y[i, :] * ratios[i] + loc, color='C%d' % line_idx, zorder=-100)
+            self.lines[i] = self.axs[4].plot(tt, y[i, :] * ratios[i] + loc, color="C%d" % line_idx, zorder=-100)
             line_idx += 1
-        self.axs[4].set_ylabel('location along fault (mm)')
-        self.axs[4].set_xlabel('time - %f (s)' %  self.event['event_time'])
+        self.axs[4].set_ylabel("location along fault (mm)")
+        self.axs[4].set_xlabel("time - %f (s)" %  self.event["event_time"])
         self.axs[4].set_ylim(105, 0)
         self.axs[0].set_xlim(tt[0], tt[-1])
         
-        self.fig.suptitle('%s run%02d event%d' % (self.parent.data['name'], 
+        self.fig.suptitle("%s run%02d event%d" % (self.parent.data["name"], 
                                                   self.run_idx, 
                                                   self.event_idx))
         
         if self.picked_idx is None:
-            if "picked_idx" in self.event:
-                self.picked_idx = self.event["strain"]["picked_idx"]
+            if "picked_idx" in self.event["strain"]["original"]:
+                self.picked_idx = self.event["strain"]["original"]["picked_idx"]
             else:
                 middle_idx = int(y.shape[1] / 2)
                 self.picked_idx = [middle_idx for i in range(n_channels)]
@@ -169,9 +168,9 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
                 continue
             idx = self.picked_idx[i]
             if self.fitting_channels[i]:
-                color = 'red'
+                color = "red"
             else:
-                color = 'black'
+                color = "black"
             (x , y) = self.lines[i][0].get_data()
             marker = patches.Ellipse((x[idx], y[idx]), width=width, height=height, color=color, fill=False, lw=2, picker=8, label=str(i))
             self.axs[4].add_patch(marker)
@@ -248,7 +247,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         a = np.polyfit(y, x, 1)
         if self.fitted_line:
             self.fitted_line[0].remove()
-        self.fitted_line = self.axs[4].plot(a[0] * y + a[1], y, 'r--')
+        self.fitted_line = self.axs[4].plot(a[0] * y + a[1], y, "r--")
         self.canvas.draw()
         warnings.filterwarnings("ignore", message="divide by zero encountered in double_scalars")
         self.rupture_speed = -1e-3 / a[0]
@@ -260,22 +259,20 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.event["strain"]["enabled_channels"] = self.enabled_channels
         self.event["strain"]["fitting_channels"] = self.fitting_channels
         self.event["rupture_speed"] = self.rupture_speed
-        if "rupture_speed" in self.event["strain"]:
-            self.event["strain"].pop("rupture_speed")
-        self.event["strain"]["picked_idx"] = self.picked_idx
-        self.event["strain"]["rupture_arrival_time"] = np.array([self.event["strain"]["time"][i] for i in self.picked_idx])
+        self.event["strain"]["original"]["picked_idx"] = self.picked_idx
+        self.event["strain"]["original"]["rupture_arrival_time"] = np.array([self.event["strain"]["time"][i] for i in self.picked_idx])
         self.parent.refresh_tree()
         print(f"Saved runs[{self.run_idx}]/events[{self.event_idx}] to data.")
 
     def init_event_combobox(self):
-        n_events = len(self.parent.data['runs'][self.run_idx]['events'])
+        n_events = len(self.parent.data["runs"][self.run_idx]["events"])
         options = [f"{i}" for i in range(n_events)]
-        self.event_combobox.config(values=options, state='readonly')
+        self.event_combobox.config(values=options, state="readonly")
         self.event_combobox.current(self.event_idx)
 
     def init_enabled_channels_mb(self):
         n = len(self.enabled_channels)
-        self.enabled_channels_mb.menu.delete(0, 'end')
+        self.enabled_channels_mb.menu.delete(0, "end")
         self.enabled_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.enabled_channels_mb.items[i].set(self.enabled_channels[i])
@@ -283,7 +280,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def init_fitting_channels_mb(self):
         n = len(self.fitting_channels)
-        self.fitting_channels_mb.menu.delete(0, 'end')
+        self.fitting_channels_mb.menu.delete(0, "end")
         self.fitting_channels_mb.items = [tk.IntVar() for i in range(n)]
         for i in range(n):
             self.fitting_channels_mb.items[i].set(self.fitting_channels[i])
@@ -291,17 +288,17 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def on_selected_event_changed(self, event):
         self.event_idx = int(self.event_combobox.get())
-        self.event = self.parent.data['runs'][self.run_idx]['events'][self.event_idx]
-        if 'enabled_channels' in self.event['strain']:
-            self.enabled_channels = self.event['strain']['enabled_channels']
+        self.event = self.parent.data["runs"][self.run_idx]["events"][self.event_idx]
+        if "enabled_channels" in self.event["strain"]:
+            self.enabled_channels = self.event["strain"]["enabled_channels"]
         else:
             self.enabled_channels = None
-        if 'fitting_channels' in self.event['strain']:
-            self.fitting_channels = self.event['strain']['fitting_channels']
+        if "fitting_channels" in self.event["strain"]:
+            self.fitting_channels = self.event["strain"]["fitting_channels"]
         else:
             self.fitting_channels = None
-        if 'picked_idx' in self.event['strain']:
-            self.picked_idx = self.event['strain']['picked_idx']
+        if "picked_idx" in self.event["strain"]["original"]:
+            self.picked_idx = self.event["strain"]["original"]["picked_idx"]
         else:
             self.picked_idx = None
         self.fitting_markers = []

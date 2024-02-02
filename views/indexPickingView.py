@@ -19,14 +19,15 @@ class IndexPickingView(tk.Toplevel):
         # Row 0
         tk.Label(self, text="X Data").grid(row=0, column=0, padx=5, pady=5)
         tk.Label(self, text="Y Data").grid(row=0, column=1, padx=5, pady=5)
-        self.index_label = tk.Label(self, text="Index: ")
-        self.index_label.grid(row=0, column=3, padx=5, pady=5)
+        tk.Label(self, text="Picked Index").grid(row=0, column=3, padx=5, pady=5)
 
         # Row 1
         self.data_x_combo = ttk.Combobox(self, state="readonly")
         self.data_x_combo.grid(row=1, column=0, padx=5, pady=5)
         self.data_y_combo = ttk.Combobox(self, state="readonly")
         self.data_y_combo.grid(row=1, column=1, padx=5, pady=5)
+        self.index_textbox = tk.Entry(self, state="readonly")
+        self.index_textbox.grid(row=1, column=3, padx=5, pady=5)
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig, self.ax = plt.subplots()
@@ -140,8 +141,7 @@ class IndexPickingView(tk.Toplevel):
                     self.current_artist.set_center((self.data_x[idx], self.data_y[idx]))
                     self.canvas.draw()
                     self.picked_idx[int(self.current_artist.get_label())] = idx
-                    # print(self.picked_idx)
-                    self.index_label.config(text=f"Index: {idx}")
+                    self.set_index_textbox(str(idx))
                 except:
                     pass
 
@@ -163,7 +163,7 @@ class IndexPickingView(tk.Toplevel):
                 self.markers.append(marker)
                 self.picked_idx.append(idx)
                 self.canvas.draw()
-                self.index_label.config(text=f"Index: {idx}")
+                self.set_index_textbox(str(idx))
         # elif event.button == 3:
         else:
             self.mouse_button_pressed = "right"
@@ -210,6 +210,15 @@ class IndexPickingView(tk.Toplevel):
         if self.index_x:
             self.data_x_combo.current(self.index_x)
         
+
+    def set_index_textbox(self, text):
+        self.index_textbox.config(state="normal")
+        self.index_textbox.delete(0, tk.END)
+        self.index_textbox.insert(0, text)
+        self.index_textbox.config(state="readonly")
+        self.clipboard_clear()
+        self.clipboard_append(text)
+
         
 
 if __name__ == "__main__":

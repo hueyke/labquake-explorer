@@ -30,7 +30,6 @@ class EventExplorer:
         self.event_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
         self.event_array_menu = tk.Menu(root, tearoff=0)
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
-        # NEW
         self.array_menu = tk.Menu(root, tearoff=0)
         self.array_menu.add_command(label="Pick Indicies", command=self.pick_indicies)
 
@@ -220,7 +219,6 @@ class EventExplorer:
             elif parent_name == "events":
                 self.active_context_menu = self.event_menu
                 self.active_context_menu.post(event.x_root, event.y_root)
-            # NEW
             elif len(item_label) > 1 and "array" in item_label[1]:
                 self.active_context_menu = self.array_menu
                 self.active_context_menu.post(event.x_root, event.y_root)

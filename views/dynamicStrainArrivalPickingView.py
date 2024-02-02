@@ -3,8 +3,9 @@ from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import numpy as np
+from scipy import signal
 import warnings
 
 class DynamicStrainArrivalPickingView(tk.Toplevel):
@@ -14,6 +15,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.title("Pick Arrivals")
 
         # Configure row and column properties
+        # 7 columns, 4 rows
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(5, weight=1)
 
@@ -22,10 +24,14 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         ttk.Label(self, text="Event Index:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.cf_label = ttk.Label(self, text="Cf=0.00m/s")
         self.cf_label.grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        ttk.Label(self, text="Filter:", anchor="e", justify="left").grid(row=3, column=0, padx=5, pady=5, sticky="e")
 
         # Comboboxes
         self.event_combobox = ttk.Combobox(self, width=10)
         self.event_combobox.grid(row=0, column=1, padx=5, pady=5)
+        self.filter_combobox = ttk.Combobox(self, width=10, state="disabled")
+        self.filter_combobox.grid(row=3, column=1, padx=5, pady=5)
+        self.filter_combobox["values"] = ("savgol_filter")
 
         # Checkbox
         self.enabled_channels_mb = tk.Menubutton(self, text="Enabled Channels")
@@ -41,6 +47,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         # Button
         self.save_button = tk.Button(self, text="Save", command=self.save)
         self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="w")
+        self.filter_toggle = tk.Button(self, text="On", command=self.toggle_filter)
+        self.filter_toggle.grid(row=3, column=6, padx=5, pady=5)
 
         # Matplotlib Figure and Tkinter Canvas
         self.fig = plt.figure(figsize=(7, 7), constrained_layout=True)
@@ -71,6 +79,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.currently_dragging = False
         self.rupture_speed = None
         self.fitted_line = None
+        self.filtering = True
         self.init_event_combobox()
         self.on_selected_event_changed(None)
 
@@ -320,6 +329,13 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             self.fitting_channels[i] = self.fitting_channels_mb.items[i].get()
         self.draw_markers()
         self.update_fitted_line()
+
+    def toggle_filter(self):
+        self.filtering = not self.filtering
+        if self.filtering:
+            self.filter_toggle.config(text="On")
+        else:
+            self.filter_toggle.config(text="Off")
 
 
 if __name__ == "__main__":

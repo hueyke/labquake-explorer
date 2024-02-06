@@ -389,7 +389,8 @@ class EventExplorer:
     def extract_run(self, idx, name=None):
         run = dict()
         idx = range(idx[0], idx[-1]+1)
-
+        if not "runs" in self.data:
+            self.data["runs"] = list()
         if name is None:
             name = f"run{len(self.data['runs'])}"
         run["name"] = name
@@ -399,9 +400,6 @@ class EventExplorer:
                 continue
             if type(self.data[key]) is np.ndarray or type(self.data[key]) is list:
                 run[key] = self.data[key][idx]
-
-        if not "runs" in self.data:
-            self.data["runs"] = list()
         self.data["runs"].append(run)
         self.refresh_tree()
         

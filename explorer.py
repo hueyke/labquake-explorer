@@ -33,6 +33,7 @@ class EventExplorer:
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
         self.array_menu = tk.Menu(root, tearoff=0)
         self.array_menu.add_command(label="Pick Indicies", command=self.pick_indicies)
+        self.array_menu.add_command(label="Extract Run", command=self.pick_run)
         self.event_indices_menu = tk.Menu(root, tearoff=0)
         self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
 
@@ -84,7 +85,7 @@ class EventExplorer:
     def load_hdf5(self, data_path):
         h5data = h5py.File(data_path, 'r')
         self.data = dict()
-        self.data["name"] = data_path.split("/")[-1].split(".")[0].split("_proc")[0]
+        self.data["name"] = data_path.split("/")[-1].split(".")[0].split("_proc")[0].split("l")[0]
         for key in list(h5data.keys()):
             self.data[key] = np.array(h5data[key])
 
@@ -121,11 +122,11 @@ class EventExplorer:
             return
         self.init_data_tree()
         self.build_tree_dict(self.data, "")
-        if selected_item:
+        try:
             self.data_tree.focus(selected_item)
             self.data_tree.selection_set(selected_item)
             self.data_tree.see(selected_item)
-        else:
+        except:
             for item in self.data_tree.get_children(""):
                 self.data_tree.item(item, open=True)
                 # for lv2_item in self.data_tree.get_children(item):
@@ -220,7 +221,7 @@ class EventExplorer:
                     self.active_context_menu = self.event_menu
             elif parent_name == "events":
                 self.active_context_menu = self.event_menu
-            elif len(item_label) > 1 and "array" in item_label[1]:
+            elif len(item_label) > 1 and "array" in item_label[1] and parent_name == "":
                 self.active_context_menu = self.array_menu
 
             if self.active_context_menu:
@@ -372,6 +373,37 @@ class EventExplorer:
         self.set_data(self.data, events_path, events)
         # run.pop("event_indices")
         showinfo(title="Success", message=f"Events extracted.")
+
+
+    def pick_run(self):
+        item_id = self.data_tree.selection()[0]
+        item_path, item_name = self.get_full_path(item_id)
+
+        y = self.get_data(self.data, item_path)
+        x = np.arange(len(y))
+        picked_idx = [int(len(y)/3), int(len(y)/3*2)]
+        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=False, 
+                                 callback=lambda idx: self.extract_run(idx),
+                                 xlabel='index', ylabel=item_name, title=item_path)
+        
+    def extract_run(self, idx, name=None):
+        run = dict()
+        idx = range(idx[0], idx[-1]+1)
+
+        if name is None:
+            name = f"run{len(self.data['runs'])}"
+        run["name"] = name
+
+        for key in self.data:
+            if key == "runs":
+                continue
+            if type(self.data[key]) is np.ndarray or type(self.data[key]) is list:
+                run[key] = self.data[key][idx]
+
+        if not "runs" in self.data:
+            self.data["runs"] = list()
+        self.data["runs"].append(run)
+        self.refresh_tree()
         
     def on_delete(self, event):
         item_id = self.data_tree.selection()[0]
@@ -383,7 +415,10 @@ class EventExplorer:
         parent_path = self.get_full_path(parent_id)[0]
         parent = self.get_data(self.data, parent_path)
         item_name = self.data_tree.item(item_id, "text").split(":")[0]
-        parent.pop(item_name)
+        if type(parent) is dict:
+            parent.pop(item_name)
+        elif type(parent) is list:
+            parent.pop(int(item_name.split(']')[0].split('[')[1]))
         self.refresh_tree()
         
 

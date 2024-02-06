@@ -288,6 +288,7 @@ class EventExplorer:
             parent[key] = value
         else:
             self.set_data(item, path[path.index('/')+1:], value, add_key)
+        self.refresh_tree()
         
     def min_max(self):
         path, item = self.get_full_path()
@@ -302,15 +303,13 @@ class EventExplorer:
     def pick_events(self):
         path, item = self.get_full_path()
         y = self.get_data(self.data, path)
-        # try:
-        #     xpath = path[:path.rfind('/')+1] + "time"
-        #     print(xpath)
-        #     x = self.get_data(self.data, xpath)
-        # except: 
-        #     x = np.arange(len(y))
         x = np.arange(len(y))
         save_path = path[:path.rfind('/')+1] + "event_indices"
-        picked_idx = []
+        parent_id = self.data_tree.parent(self.data_tree.selection()[0])
+        if self.has_child_named(parent_id, "event_indices"):
+            picked_idx = self.get_data(self.data, self.get_full_path(parent_id)[0] + "/event_indices")
+        else:
+            picked_idx = []
         view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=True, 
                                  callback=lambda data: self.set_data(self.data, save_path, data, add_key=True),
                                  xlabel='index', ylabel=item, title=path)

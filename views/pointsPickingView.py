@@ -15,7 +15,7 @@ class PointsPickingView(tk.Toplevel):
         # Buttons
         if add_remove_enabled and callback:
             self.callback = callback
-            self.open_button = tk.Button(self, text="Save", command=lambda:self.callback(self.picked_idx))
+            self.open_button = tk.Button(self, text="Save", command=self.save)
             self.open_button.pack(side=tk.TOP, padx=5)
 
         # Matplotlib Figure and Tkinter Canvas
@@ -153,6 +153,10 @@ class PointsPickingView(tk.Toplevel):
                 marker.set_width(width)
                 marker.set_height(height)
             self.canvas.draw()
+
+    def save(self):
+        self.picked_idx.sort()
+        self.callback(self.picked_idx)
 
 if __name__ == "__main__":
     root = tk.Tk()

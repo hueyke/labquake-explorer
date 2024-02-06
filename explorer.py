@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+from tkinter.messagebox import askokcancel, WARNING
 import numpy as np
 import os
 import h5py
@@ -32,6 +33,8 @@ class EventExplorer:
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
         self.array_menu = tk.Menu(root, tearoff=0)
         self.array_menu.add_command(label="Pick Indicies", command=self.pick_indicies)
+        self.event_indices_menu = tk.Menu(root, tearoff=0)
+        self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
 
         # Buttons
         self.open_button = tk.Button(
@@ -151,7 +154,7 @@ class EventExplorer:
             if type(parent_dict[item]) is dict:
                 self.build_tree_dict(parent_dict[item], iid)
             if type(parent_dict[item]) is np.ndarray or type(parent_dict[item]) is list:
-                if len(parent_dict[item]) < 100:
+                if len(parent_dict[item]) < 200:
                     self.build_tree_array(parent_dict[item], iid)
     
     def build_tree_array(self, parent_array, parent_iid):
@@ -201,32 +204,48 @@ class EventExplorer:
     def on_right_click(self, event):
         item = self.data_tree.selection()[0]
         if item:
-            item_name = self.data_tree.item(item)['text'].split(':')[0]
             item_label = self.data_tree.item(item)['text'].split(':')
             parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
             grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
             if grandparent_name == "runs":
-                if len(item_label) > 1 and "array" in item_label[1]:
+                if item_label[0] == "event_indices":
+                    self.active_context_menu = self.event_indices_menu
+                elif len(item_label) > 1 and "array" in item_label[1]:
                     self.active_context_menu = self.run_menu
-                    self.active_context_menu.post(event.x_root, event.y_root)
             elif grandparent_name == "events":
                 if len(item_label) > 1 and "array" in item_label[1]:
                     self.active_context_menu = self.event_array_menu
-                    self.active_context_menu.post(event.x_root, event.y_root)
                 else:
                     self.active_context_menu = self.event_menu
-                    self.active_context_menu.post(event.x_root, event.y_root)
             elif parent_name == "events":
                 self.active_context_menu = self.event_menu
-                self.active_context_menu.post(event.x_root, event.y_root)
             elif len(item_label) > 1 and "array" in item_label[1]:
                 self.active_context_menu = self.array_menu
+
+            if self.active_context_menu:
                 self.active_context_menu.post(event.x_root, event.y_root)
 
-            
+    def has_child_name_contains(self, item_id, keyword):
+        if not item_id:
+            return False
+        children = self.data_tree.get_children(item_id)
+        for child_id in children:
+            if keyword in self.data_tree.item(child_id, "text"):
+                return True
+        return False
+    
+    def has_child_named(self, item_id, name):
+        if not item_id:
+            return False
+        children = self.data_tree.get_children(item_id)
+        for child_id in children:
+            if name == self.data_tree.item(child_id, "text").split(":")[0]:
+                return True
+        return False
 
-    def get_full_path(self):
-        item = self.data_tree.selection()[0]
+    def get_full_path(self, item=None):
+        if item is None:
+            item = self.data_tree.selection()[0]
         parent_iid = self.data_tree.parent(item)
         node = []
         # go backward until reaching root
@@ -307,6 +326,16 @@ class EventExplorer:
         item = self.data_tree.selection()[0]
         item_name = self.data_tree.item(item)['text'].split(':')[0]
         view = IndexPickingView(self, item_y=item_name)
+
+    def extract_events(self):
+        item = self.data_tree.selection()[0]
+        parent = self.data_tree.parent(item)
+        self.get_full_path()
+        if self.has_child_named(parent, "events"):
+            ans = askokcancel(title="Confirmation", message=f"This procedure will replace all data in \"{self.get_full_path(parent)[0]}/events\".", icon=WARNING)
+        if not ans:
+            return
+
 
     # def on_test(self):
     #     selected_item = self.data_tree.selection()

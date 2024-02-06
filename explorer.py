@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
-from tkinter.messagebox import askokcancel, WARNING
+from tkinter.messagebox import askokcancel, showinfo, WARNING
 import numpy as np
 import os
 import h5py
@@ -37,21 +37,19 @@ class EventExplorer:
         self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
 
         # Buttons
-        self.open_button = tk.Button(
-            root, text="Load", command=self.load_file)
+        self.open_button = tk.Button(root, text="Load", command=self.load_file)
         self.open_button.grid(row=1, column=0, padx=2, pady=2, sticky="w")
 
-        self.plot_button = tk.Button(
-            root, text="Refresh", command=self.refresh_tree)
+        self.plot_button = tk.Button(root, text="Refresh", command=self.refresh_tree)
         self.plot_button.grid(row=1, column=1, padx=2, pady=2, sticky="w")
 
-        self.save_button = tk.Button(
-            root, text="Save As", command=self.save_file, state="disabled")
+        self.save_button = tk.Button(root, text="Save As", command=self.save_file, state="disabled")
         self.save_button.grid(row=1, column=3, padx=2, pady=2, sticky="e")
 
         # initialize
         self.data = None
         self.active_context_menu = None
+        root.bind("<Delete>", self.on_delete)
 
 
     def load_file(self):
@@ -74,6 +72,8 @@ class EventExplorer:
             self.refresh_tree()
             self.data_path = data_path
             self.save_button.configure(state="normal")
+            print(f"File loaded: {data_path}")
+            # showinfo(title="Success", message=f"File \"{data_path}\" loaded.")
 
     
     def load_npz(self, data_path):
@@ -99,6 +99,7 @@ class EventExplorer:
             # np.savez_compressed(data_path, exp=self.data)
             np.savez(data_path, experiment=self.data)
             print(f"File saved: {data_path}")
+            showinfo(title="Success", message=f"File \"{data_path}\" saved.")
 
 
     def init_data_tree(self):
@@ -329,12 +330,62 @@ class EventExplorer:
     def extract_events(self):
         item = self.data_tree.selection()[0]
         parent = self.data_tree.parent(item)
-        self.get_full_path()
+        event_indices_path = self.get_full_path()[0]
+        parent_path = self.get_full_path(parent)[0]
+        events_path = f"{parent_path}/events"
+        run_path = f"{parent_path}"
         if self.has_child_named(parent, "events"):
-            ans = askokcancel(title="Confirmation", message=f"This procedure will replace all data in \"{self.get_full_path(parent)[0]}/events\".", icon=WARNING)
+            ans = askokcancel(title="Confirmation", message=f"This procedure will replace all data in \"{events_path}\".", icon=WARNING)
+            if not ans:
+                return
+            
+        window = 5 # MAKE A VIEW TO DETERMINE WINDOW
+        
+        events = list()
+        run = self.get_data(self.data, run_path)
+        event_indices = self.get_data(self.data, event_indices_path)
+        for idx in event_indices:
+            event = dict()
+            event_time = run["time"][idx]
+            idx_beg = np.argmin(np.abs(event_time - window - run["time"]))
+            idx_end = np.argmin(np.abs(event_time + window - run["time"]))
+            idx_event = range(idx_beg, idx_end + 1)
+            event['event_time'] = event_time
+            event['time'] = run['time'][idx_event]
+            event['normal_stress'] = run['normal_stress'][idx_event]
+            event['shear_stress'] = run['shear_stress'][idx_event]
+            event['friction'] = run['friction'][idx_event]
+            event['LP_displacement'] = run['LP_displacement'][idx_event]
+            event['displacement'] = run['displacement'][idx_event]
+            event['Exy1'] = run['Exy1'][idx_event]
+
+            idx_beg = np.argmin(np.abs(event_time - window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
+            idx_end = np.argmin(np.abs(event_time + window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
+            idx_event = range(idx_beg, idx_end + 1)
+            event['strain'] = dict()
+            event['strain']['filename_downsampled'] = run['strain']['filename_downsampled']
+            event['strain']['filename'] = run['strain']['filename']
+            event['strain']['time'] = run['time'][0] + run['strain']['time_offset'] + run['strain']['time'][idx_event]
+            event['strain']['raw'] = run['strain']['raw'][:, idx_event]
+            events.append(event)
+        
+        self.set_data(self.data, events_path, events)
+        # run.pop("event_indices")
+        showinfo(title="Success", message=f"Events extracted.")
+        
+    def on_delete(self, event):
+        item_id = self.data_tree.selection()[0]
+        item_path = self.get_full_path(item_id)[0]
+        ans = askokcancel(title="Confirmation", message=f"This procedure will delete \"{item_path}\".", icon=WARNING)
         if not ans:
             return
-
+        parent_id = self.data_tree.parent(item_id)
+        parent_path = self.get_full_path(parent_id)[0]
+        parent = self.get_data(self.data, parent_path)
+        item_name = self.data_tree.item(item_id, "text").split(":")[0]
+        parent.pop(item_name)
+        self.refresh_tree()
+        
 
     # def on_test(self):
     #     selected_item = self.data_tree.selection()

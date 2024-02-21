@@ -353,25 +353,32 @@ class EventExplorer:
             idx_event = range(idx_beg, idx_end + 1)
             event['event_time'] = event_time
             event['time'] = run['time'][idx_event]
-            event['normal_stress'] = run['normal_stress'][idx_event]
-            event['shear_stress'] = run['shear_stress'][idx_event]
-            event['friction'] = run['friction'][idx_event]
-            event['LP_displacement'] = run['LP_displacement'][idx_event]
-            event['displacement'] = run['displacement'][idx_event]
-            event['Exy1'] = run['Exy1'][idx_event]
+            try:
+                event['normal_stress'] = run['normal_stress'][idx_event]
+                event['shear_stress'] = run['shear_stress'][idx_event]
+                event['friction'] = run['friction'][idx_event]
+                event['LP_displacement'] = run['LP_displacement'][idx_event]
+                event['displacement'] = run['displacement'][idx_event]
+                event['Exy1'] = run['Exy1'][idx_event]
 
-            idx_beg = np.argmin(np.abs(event_time - window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
-            idx_end = np.argmin(np.abs(event_time + window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
-            idx_event = range(idx_beg, idx_end + 1)
-            event['strain'] = dict()
-            event['strain']['filename_downsampled'] = run['strain']['filename_downsampled']
-            event['strain']['filename'] = run['strain']['filename']
-            event['strain']['time'] = run['time'][0] + run['strain']['time_offset'] + run['strain']['time'][idx_event]
-            event['strain']['raw'] = run['strain']['raw'][:, idx_event]
+                idx_beg = np.argmin(np.abs(event_time - window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
+                idx_end = np.argmin(np.abs(event_time + window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
+                idx_event = range(idx_beg, idx_end + 1)
+                event['strain'] = dict()
+                event['strain']['filename_downsampled'] = run['strain']['filename_downsampled']
+                event['strain']['filename'] = run['strain']['filename']
+                event['strain']['time'] = run['time'][0] + run['strain']['time_offset'] + run['strain']['time'][idx_event]
+                event['strain']['raw'] = run['strain']['raw'][:, idx_event]
+            except:
+                for key in run:
+                    if key == "events":
+                        continue
+                    if type(run[key]) is np.ndarray or type(run[key]) is list:
+                        event[key] = run[key][idx]
             events.append(event)
         
         self.set_data(self.data, events_path, events)
-        # run.pop("event_indices")
+        run.pop("event_indices")
         showinfo(title="Success", message=f"Events extracted.")
 
 

@@ -39,9 +39,12 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         # [0, 4]
         self.cf_label = ttk.Label(self, text="Cf=0.00m/s")
         self.cf_label.grid(row=0, column=4, padx=5, pady=5, sticky="e")
+        # [0, 5]
+        self.magic_button = tk.Button(self, text="Magic", command=self.magic)
+        self.magic_button.grid(row=0, column=5, padx=5, pady=5, sticky="e")
         # [0, 6]
         self.save_button = tk.Button(self, text="Save", command=self.save)
-        self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="w")
+        self.save_button.grid(row=0, column=6, padx=5, pady=5, sticky="e")
 
         # [1, 0::]
         self.fig = plt.figure(figsize=(7, 7), constrained_layout=True)
@@ -371,6 +374,22 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             self.filter_window_length.set(int())
         self.plot()
         self.update_fitted_line()
+
+    def magic(self):
+        self.event["strain"]["enabled_channels"] = [1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0]
+        self.event["strain"]["fitting_channels"] = [0,0, 1,0, 1,0, 0,0, 0,0, 0,0, 0,0, 0,0]
+        self.on_selected_event_changed()
+        (x , y) = self.lines[0][0].get_data()
+        self.event["strain"]["original"]["picked_idx"][0] = np.argmin(y)
+        (x , y) = self.lines[2][0].get_data()
+        self.event["strain"]["original"]["picked_idx"][2] = np.argmin(y)
+        (x , y) = self.lines[4][0].get_data()
+        self.event["strain"]["original"]["picked_idx"][4] = np.argmin(y)
+        self.on_selected_event_changed()
+
+        # self.event["strain"]["enabled_channels"] = [0,1, 0,1, 0,1, 0,1, 0,1, 0,1, 0,1, 0,1]
+        # self.event["strain"]["fitting_channels"] = [0,0, 0,0, 0,0, 0,0, 0,1, 0,1, 0,1, 0,1]
+        # self.on_selected_event_changed()
 
 if __name__ == "__main__":
     pass

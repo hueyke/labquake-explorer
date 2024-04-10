@@ -71,7 +71,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         # [3, 2]
         ttk.Label(self, text="Window length", justify="right").grid(row=3, column=2, padx=5, pady=5, sticky="w")
         # [3, 3]
-        self.filter_window_length = tk.StringVar(value=101)
+        self.filter_window_length = tk.StringVar(value=51)
         self.filter_window_length_box = ttk.Spinbox(self, from_=2, to=201, increment=2, textvariable=self.filter_window_length)
         self.filter_window_length_box.grid(row=3, column=3, padx=5, pady=5, sticky="ew")
         # [3, 4]
@@ -94,6 +94,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.rupture_speed = None
         self.fitted_line = None
         self.filtering = True
+        self.xlim = None
         self.init_event_combobox()
         self.on_selected_event_changed()
         self.on_resize()
@@ -109,6 +110,8 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
         self.filter_window_length_box.bind("<ButtonRelease>", self.on_filter_window_length_box_changed)
 
     def plot(self):
+        exp_number = int(self.parent.data["name"][1:5])
+        # print(exp_number)
         linestyle = ".-"
 
         self.fig.clear()
@@ -133,15 +136,26 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             if "enabled_channels" in self.event:
                 self.enabled_channels = self.event["strain"]["enabled_channels"]
             else:
-                self.enabled_channels = [i % 2 == 0 for i in range(n_channels)]
+                if exp_number >= 5958:
+                    self.enabled_channels = [i < 13 for i in range(n_channels)]
+                else:
+                    self.enabled_channels = [i % 2 == 0 for i in range(n_channels)]
         if self.fitting_channels is None:
             if "fitting_channels" in self.event:
                 self.fitting_channels = self.event["strain"]["fitting_channels"]
             else:
-                # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
-                self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]
+                if exp_number >= 5958:
+                    self.fitting_channels = [False, True, True, True, True, True, True, True, True, True, True, True, False, False, False, False]
+                else: 
+                    # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
+                    self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]
         if (not "locations" in self.event["strain"]) or (not len(self.event["strain"]["locations"]) == n_channels):
-            self.event["strain"]["locations"] = [10.5 + 12 * int(i / 2) for i in range(n_channels)]
+
+            if exp_number >= 5958:
+                self.event["strain"]["locations"] = [2 + 12 * i for i in range(16)]
+                self.event["strain"]["locations"][-3:] = [2, 74, 146]
+            else:
+                self.event["strain"]["locations"] = [10.5 + 12 * int(i / 2) for i in range(n_channels)]
         
         self.lines = [None for i in range(n_channels)]
 
@@ -156,13 +170,19 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
                 continue
             loc = self.event["strain"]["locations"][i]
             self.axs[4].plot([tt[0], tt[-1]], [loc, loc], "k:", zorder=-101)
-            ratios[i] = 12 / (y[i, :].max() - y[i, :].min())
+            ratios[i] = -12 / (y[i, :].max() - y[i, :].min())
             self.lines[i] = self.axs[4].plot(tt, y[i, :] * ratios[i] + loc, color="C%d" % line_idx, zorder=-100)
             line_idx += 1
         self.axs[4].set_ylabel("location along fault (mm)")
         self.axs[4].set_xlabel("time - %f (s)" %  self.event["event_time"])
-        self.axs[4].set_ylim(105, 0)
-        self.axs[0].set_xlim(tt[0], tt[-1])
+        if exp_number >= 5958:
+            self.axs[4].set_ylim(160, -10)
+        else:
+            self.axs[4].set_ylim(105, 0)
+        if self.xlim is None:
+            self.axs[0].set_xlim(tt[0], tt[-1])
+        else:
+            self.axs[0].set_xlim(self.xlim)
         
         self.fig.suptitle("%s run%02d event%d" % (self.parent.data["name"], 
                                                   self.run_idx, 
@@ -263,6 +283,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
                 marker.set_width(width)
                 marker.set_height(height)
             self.canvas.draw()
+        self.xlim = self.axs[0].get_xlim()
     
     def update_fitted_line(self):
         x = np.empty(len(self.fitting_markers))
@@ -331,6 +352,7 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
             self.picked_idx = self.event["strain"]["original"]["picked_idx"]
         else:
             self.picked_idx = None
+        self.xlim = None
         self.fitting_markers = []
         self.not_fitting_markers = []
         self.offset = [0, 0]
@@ -371,25 +393,32 @@ class DynamicStrainArrivalPickingView(tk.Toplevel):
 
     def on_filter_window_length_box_changed(self, event=None):
         if int(self.filter_window_length.get()) % 2 == 0:
-            self.filter_window_length.set(int())
+            self.filter_window_length.set(int(self.filter_window_length.get()))
         self.plot()
         self.update_fitted_line()
 
     def magic(self):
-        self.event["strain"]["enabled_channels"] = [1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0]
-        self.event["strain"]["fitting_channels"] = [0,0, 1,0, 1,0, 0,0, 0,0, 0,0, 0,0, 0,0]
-        self.on_selected_event_changed()
-        (x , y) = self.lines[0][0].get_data()
-        self.event["strain"]["original"]["picked_idx"][0] = np.argmin(y)
-        (x , y) = self.lines[2][0].get_data()
-        self.event["strain"]["original"]["picked_idx"][2] = np.argmin(y)
-        (x , y) = self.lines[4][0].get_data()
-        self.event["strain"]["original"]["picked_idx"][4] = np.argmin(y)
-        self.on_selected_event_changed()
+        # self.event["strain"]["enabled_channels"] = [1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0, 1,0]
+        # self.event["strain"]["fitting_channels"] = [0,0, 1,0, 1,0, 0,0, 0,0, 0,0, 0,0, 0,0]
+        # self.on_selected_event_changed()
+        # (x , y) = self.lines[0][0].get_data()
+        # self.event["strain"]["original"]["picked_idx"][0] = np.argmin(y)
+        # (x , y) = self.lines[2][0].get_data()
+        # self.event["strain"]["original"]["picked_idx"][2] = np.argmin(y)
+        # (x , y) = self.lines[4][0].get_data()
+        # self.event["strain"]["original"]["picked_idx"][4] = np.argmin(y)
+        # self.on_selected_event_changed()
 
         # self.event["strain"]["enabled_channels"] = [0,1, 0,1, 0,1, 0,1, 0,1, 0,1, 0,1, 0,1]
         # self.event["strain"]["fitting_channels"] = [0,0, 0,0, 0,0, 0,0, 0,1, 0,1, 0,1, 0,1]
         # self.on_selected_event_changed()
+
+        for i in range(len(self.lines)):
+            if self.lines[i] is None:
+                continue
+            (x , y) = self.lines[i][0].get_data()
+            self.picked_idx[i] = np.argmin(y)
+        self.draw_markers()
 
 if __name__ == "__main__":
     pass

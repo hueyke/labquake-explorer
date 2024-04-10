@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+from tkinter import simpledialog
 from tkinter.messagebox import askokcancel, showinfo, WARNING
 import numpy as np
 import os
@@ -10,12 +11,14 @@ from views.simplePlottingView import SimplePlottingView
 from views.pointsPickingView import PointsPickingView
 from views.indexPickingView import IndexPickingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
+import tpc5
 
 class EventExplorer:
     def __init__(self, root):
         self.root = root
         self.root.title("Event Explorer")
-        self.root.geometry(f"300x{self.root.winfo_screenheight()-80}+40+40")
+        gap = 100
+        self.root.geometry(f"300x{self.root.winfo_screenheight()-gap * 2}+{gap}+{gap}")
 
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
@@ -36,6 +39,8 @@ class EventExplorer:
         self.array_menu.add_command(label="Extract Run", command=self.pick_run)
         self.event_indices_menu = tk.Menu(root, tearoff=0)
         self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
+        self.string_menu =  tk.Menu(root, tearoff=0)
+        self.string_menu.add_command(label="Edit String", command=self.edit_string)
 
         # Buttons
         self.open_button = tk.Button(root, text="Load", command=self.load_file)
@@ -156,7 +161,7 @@ class EventExplorer:
             if type(parent_dict[item]) is dict:
                 self.build_tree_dict(parent_dict[item], iid)
             if type(parent_dict[item]) is np.ndarray or type(parent_dict[item]) is list:
-                if len(parent_dict[item]) < 200:
+                if len(parent_dict[item]) < 1000:
                     self.build_tree_array(parent_dict[item], iid)
     
     def build_tree_array(self, parent_array, parent_iid):
@@ -178,7 +183,7 @@ class EventExplorer:
             if type(parent_array[i]) is dict:
                 self.build_tree_dict(parent_array[i], iid)
             if type(parent_array[i]) is np.ndarray or type(parent_array[i]) is list:
-                if len(parent_array[i]) < 100:
+                if len(parent_array[i]) < 1000:
                     self.build_tree_array(parent_array[i], iid)
 
     def on_double_click(self, event):
@@ -205,6 +210,7 @@ class EventExplorer:
 
     def on_right_click(self, event):
         item = self.data_tree.selection()[0]
+        self.active_context_menu = None
         if item:
             item_label = self.data_tree.item(item)['text'].split(':')
             parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
@@ -223,6 +229,11 @@ class EventExplorer:
                 self.active_context_menu = self.event_menu
             elif len(item_label) > 1 and "array" in item_label[1] and parent_name == "":
                 self.active_context_menu = self.array_menu
+            else:
+                path, *_ = self.get_full_path()
+                data = self.get_data(self.data, path)
+                if type(data) is str:
+                    self.active_context_menu = self.string_menu
 
             if self.active_context_menu:
                 self.active_context_menu.post(event.x_root, event.y_root)
@@ -339,13 +350,30 @@ class EventExplorer:
             ans = askokcancel(title="Confirmation", message=f"This procedure will replace all data in \"{events_path}\".", icon=WARNING)
             if not ans:
                 return
-            
-        window = 5 # MAKE A VIEW TO DETERMINE WINDOW
+        window = simpledialog.askfloat('Set event time window length', 'Please set the duration before and after the event to be extracted.', initialvalue=5)
+        if window is None:
+            print('Event extraction aborted.')
+            return
+        else:
+            print(f'Window set to (-{window}, {window})')
         
         events = list()
         run = self.get_data(self.data, run_path)
         event_indices = self.get_data(self.data, event_indices_path)
-        for idx in event_indices:
+        # f = h5py.File('data_'+self.data["name"]+'/'+run['strain']['filename'], 'r')
+        f = h5py.File('./'+run['strain']['filename'], 'r')
+        n_channels = tpc5.getNChannels(f)
+        n_samples = tpc5.getNSamples(f, 1)
+        TriggerSample = tpc5.getTriggerSample(f, 1, 1)
+        SamplingRate = tpc5.getSampleRate(f, 1, 1)
+        startTime = -TriggerSample / SamplingRate
+        endTime = (n_samples - TriggerSample) / SamplingRate
+        ts = np.arange(startTime, endTime, 1/SamplingRate)
+        ts += run['strain']['time_offset'] + run['time'][0] - ts[0]
+
+        for i in range(len(event_indices)):
+            print(f'Extracting event {i+1}/{len(event_indices)}...')
+            idx = event_indices[i]
             event = dict()
             event_time = run["time"][idx]
             idx_beg = np.argmin(np.abs(event_time - window - run["time"]))
@@ -358,8 +386,9 @@ class EventExplorer:
                 event['shear_stress'] = run['shear_stress'][idx_event]
                 event['friction'] = run['friction'][idx_event]
                 event['LP_displacement'] = run['LP_displacement'][idx_event]
+                event['LP_velocity'] = run['LP_velocity'][idx_event]
                 event['displacement'] = run['displacement'][idx_event]
-                event['Exy1'] = run['Exy1'][idx_event]
+                # event['Exy1'] = run['Exy1'][idx_event]
 
                 idx_beg = np.argmin(np.abs(event_time - window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
                 idx_end = np.argmin(np.abs(event_time + window - run['time'][0] - run['strain']['time'] - run['strain']['time_offset']))
@@ -369,6 +398,20 @@ class EventExplorer:
                 event['strain']['filename'] = run['strain']['filename']
                 event['strain']['time'] = run['time'][0] + run['strain']['time_offset'] + run['strain']['time'][idx_event]
                 event['strain']['raw'] = run['strain']['raw'][:, idx_event]
+                event['strain']['original'] = dict()
+                time_before = event['event_time'] - window
+                time_after = event['event_time'] + window
+                idx_before = np.argmin(np.abs(ts - time_before))
+                idx_after = np.argmin(np.abs(ts - time_after))
+                tt = ts[idx_before:idx_after]
+                y = np.zeros((n_channels, len(tt)))
+                for i in range(n_channels):
+                    print(f'Loading raw strain data {i+1}/{n_channels}')
+                    y[i, :] = tpc5.getVoltageData(f, i + 1)[idx_before:idx_after]
+                for i in range(y.shape[0]):
+                    y[i, :] -= y[i, 0:int(y.shape[1] / 100)].mean()
+                event['strain']['original']['time'] = tt
+                event['strain']['original']['raw'] = y
             except:
                 for key in run:
                     if key == "events":
@@ -377,9 +420,21 @@ class EventExplorer:
                         event[key] = run[key][idx]
             events.append(event)
         
-        self.set_data(self.data, events_path, events)
-        run.pop("event_indices")
+        self.set_data(self.data, events_path, events, add_key=True)
+        # run.pop("event_indices")
         showinfo(title="Success", message=f"Events extracted.")
+    
+    def edit_string(self):
+        path, item = self.get_full_path()
+        data = self.get_data(self.data, path)
+
+        new_string = simpledialog.askstring('Edit String', f'{path}', initialvalue=data)
+        if new_string is None:
+            print('Edit String aborted.')
+            return
+        else:
+            self.set_data(self.data, path, new_string)
+
 
 
     def pick_run(self):

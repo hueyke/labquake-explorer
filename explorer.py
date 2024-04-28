@@ -10,6 +10,7 @@ from numbers import Number
 from views.simplePlottingView import SimplePlottingView
 from views.pointsPickingView import PointsPickingView
 from views.indexPickingView import IndexPickingView
+from views.slopeExtractingView import SlopeExtractingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
 import tpc5
 
@@ -36,6 +37,7 @@ class EventExplorer:
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
         self.array_menu = tk.Menu(root, tearoff=0)
         self.array_menu.add_command(label="Pick Indicies", command=self.pick_indicies)
+        self.array_menu.add_command(label="Extract Slopes", command=self.extract_slope)
         self.array_menu.add_command(label="Extract Run", command=self.pick_run)
         self.event_indices_menu = tk.Menu(root, tearoff=0)
         self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
@@ -209,34 +211,40 @@ class EventExplorer:
             self.active_context_menu.unpost()
 
     def on_right_click(self, event):
-        item = self.data_tree.selection()[0]
         self.active_context_menu = None
-        if item:
-            item_label = self.data_tree.item(item)['text'].split(':')
-            parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
-            grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
-            if grandparent_name == "runs":
-                if item_label[0] == "event_indices":
-                    self.active_context_menu = self.event_indices_menu
-                elif len(item_label) > 1 and "array" in item_label[1]:
-                    self.active_context_menu = self.run_menu
-            elif grandparent_name == "events":
-                if len(item_label) > 1 and "array" in item_label[1]:
-                    self.active_context_menu = self.event_array_menu
-                else:
-                    self.active_context_menu = self.event_menu
-            elif parent_name == "events":
+        item = self.data_tree.selection()[0]
+        if not item:
+            return
+        
+        # data-structure-specific context menus
+        item_label = self.data_tree.item(item)['text'].split(':')
+        parent_name = self.data_tree.item(self.data_tree.parent(item))['text'].split(':')[0]
+        grandparent_name = self.data_tree.item(self.data_tree.parent(self.data_tree.parent(item)))['text'].split(':')[0]
+        if grandparent_name == "runs":
+            if item_label[0] == "event_indices":
+                self.active_context_menu = self.event_indices_menu
+            elif len(item_label) > 1 and "array" in item_label[1]:
+                self.active_context_menu = self.run_menu
+        elif grandparent_name == "events":
+            if len(item_label) > 1 and "array" in item_label[1]:
+                self.active_context_menu = self.event_array_menu
+            else:
                 self.active_context_menu = self.event_menu
+        elif parent_name == "events":
+            self.active_context_menu = self.event_menu
+        
+        # general purpose context menus
+        if not self.active_context_menu:
+            path, *_ = self.get_full_path()
+            data = self.get_data(self.data, path)
+            if type(data) is str:
+                self.active_context_menu = self.string_menu
             elif len(item_label) > 1 and "array" in item_label[1] and parent_name == "":
                 self.active_context_menu = self.array_menu
-            else:
-                path, *_ = self.get_full_path()
-                data = self.get_data(self.data, path)
-                if type(data) is str:
-                    self.active_context_menu = self.string_menu
-
-            if self.active_context_menu:
-                self.active_context_menu.post(event.x_root, event.y_root)
+        
+        # post context menu
+        if self.active_context_menu:
+            self.active_context_menu.post(event.x_root, event.y_root)
 
     def has_child_name_contains(self, item_id, keyword):
         if not item_id:
@@ -338,6 +346,11 @@ class EventExplorer:
         item = self.data_tree.selection()[0]
         item_name = self.data_tree.item(item)['text'].split(':')[0]
         view = IndexPickingView(self, item_y=item_name)
+
+    def extract_slope(self):
+        item = self.data_tree.selection()[0]
+        item_name = self.data_tree.item(item)['text'].split(':')[0]
+        view = SlopeExtractingView(self, item_y=item_name)
 
     def extract_events(self):
         item = self.data_tree.selection()[0]

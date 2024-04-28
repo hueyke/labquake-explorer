@@ -6,45 +6,50 @@ import matplotlib.patches as patches
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-class IndexPickingView(tk.Toplevel):
+class SlopeExtractingView(tk.Toplevel):
     def __init__(self, parent, item_y=None, item_x=None):
         self.root = parent.root
         super().__init__(self.root)
-        self.title("Index Picking View")
-        self.grid_rowconfigure(2, weight=1)
-        self.grid_columnconfigure(2, weight=1)
-
+        self.title("Slope Extracting View")
         self.parent = parent
 
+        # dummy resizing column is 3
+        self.grid_columnconfigure(3, weight=1)
+        # resizing row is set to only the canvas
+        self.grid_rowconfigure(2, weight=1)
+
+        # Tree
+        self.data_tree = ttk.Treeview(self)
+        self.data_tree.grid(row=0, column=0, rowspan=4, padx=2, pady=0, sticky="nsw")
+        self.data_tree.heading("#0", text="Extracted Slopes", anchor="w")
+
         # Row 0
-        tk.Label(self, text="X Data").grid(row=0, column=0, padx=5, pady=5)
-        tk.Label(self, text="Y Data").grid(row=0, column=1, padx=5, pady=5)
-        tk.Label(self, text="Picked Index").grid(row=0, column=3, padx=5, pady=5)
+        tk.Label(self, text="X Data").grid(row=0, column=1, padx=5, pady=0)
+        tk.Label(self, text="Y Data").grid(row=0, column=2, padx=5, pady=0)
+        tk.Label(self, text="Slope").grid(row=0, column=4, padx=5, pady=0)
 
         # Row 1
         self.data_x_combo = ttk.Combobox(self, state="readonly")
-        self.data_x_combo.grid(row=1, column=0, padx=5, pady=5)
+        self.data_x_combo.grid(row=1, column=1, padx=5, pady=0)
         self.data_y_combo = ttk.Combobox(self, state="readonly")
-        self.data_y_combo.grid(row=1, column=1, padx=5, pady=5)
-        self.index_textbox = tk.Entry(self, state="readonly")
-        self.index_textbox.grid(row=1, column=3, padx=5, pady=5)
+        self.data_y_combo.grid(row=1, column=2, padx=5, pady=0)
+        self.slope_textbox = tk.Entry(self, state="readonly")
+        self.slope_textbox.grid(row=1, column=4, padx=5, pady=0)
 
-        # Matplotlib Figure and Tkinter Canvas
+        # Row 2 - Matplotlib Figure and Tkinter Canvas
         self.fig, self.ax = plt.subplots()
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
+        self.canvas_widget.grid(row=2, column=1, columnspan=4, padx=5, pady=5, sticky="nsew")
 
         
-        # Navigation toolbar for zooming and panning
+        # Row 3 - Navigation toolbar for zooming and panning
         toolbar_frame = ttk.Frame(self)
-        toolbar_frame.grid(row=3, column=0, columnspan=4, padx=0, pady=0, sticky="ew")
+        toolbar_frame.grid(row=3, column=1, columnspan=4, padx=0, pady=0, sticky="ew")
         toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         toolbar.update()
 
         # Data points
-        self.add_remove_enabled = True
-        self.picked_idx = []
         self.item_y = item_y
         self.item_x = item_x
         self.index_y = None
@@ -56,11 +61,12 @@ class IndexPickingView(tk.Toplevel):
         self.mouse_button_pressed = None
         self.current_artist = None
         self.currently_dragging = False
-        self.plot_picked_points()
 
         # init functions
         self.init_comboboxes()
         self.plot_data()
+        self.picked_idx = [int(len(self.data_y)/3), int(len(self.data_y)/3*2)]
+        self.plot_picked_points()
 
         # Event bindings
         self.fig.canvas.mpl_connect('pick_event', self.on_pick)
@@ -75,10 +81,12 @@ class IndexPickingView(tk.Toplevel):
     def data_y_selected(self, event):
         self.item_y = self.data_y_combo.get()
         self.plot_data()
+        self.plot_picked_points()
 
     def data_x_selected(self, event):
         self.item_x = self.data_x_combo.get()
         self.plot_data()
+        self.plot_picked_points()
 
     def plot_data(self):
         if self.item_y is None:
@@ -101,28 +109,25 @@ class IndexPickingView(tk.Toplevel):
 
     def plot_picked_points(self):
         width, height = self.get_circle_dims()
+        for marker in self.markers:
+            marker.remove()
+        self.markers = []
         for i in range(len(self.picked_idx)):
             idx = self.picked_idx[i]
-            x = self.data_x[idx]
+            x = self.data_x[idx] if len(self.data_x) >= idx else idx
             y = self.data_y[idx]
             marker = patches.Ellipse((x, y), width=width, height=height, color='red', fill=False, lw=2, picker=8, label=str(i))
             self.ax.add_patch(marker)
             self.markers.append(marker)
-
         self.canvas.draw()
+        self.update_slope()
 
     def on_pick(self, event):
         if self.current_artist is None:
             self.current_artist = event.artist
             if isinstance(event.artist, patches.Ellipse):
                 if event.mouseevent.dblclick:
-                    if self.add_remove_enabled and self.mouse_button_pressed == "right":
-                        i = int(self.current_artist.get_label())
-                        self.markers.remove(self.current_artist)
-                        self.current_artist.remove()
-                        self.current_artist = None
-                        del self.picked_idx[i]
-                        self.canvas.draw()
+                    pass
                 else:
                     x0, y0 = self.current_artist.center
                     x1, y1 = event.mouseevent.xdata, event.mouseevent.ydata
@@ -145,7 +150,7 @@ class IndexPickingView(tk.Toplevel):
                     self.current_artist.set_center((self.data_x[idx], self.data_y[idx]))
                     self.canvas.draw()
                     self.picked_idx[int(self.current_artist.get_label())] = idx
-                    self.set_index_textbox(str(idx))
+                    self.update_slope()
                 except:
                     pass
 
@@ -153,22 +158,6 @@ class IndexPickingView(tk.Toplevel):
         self.currently_dragging = True
         if event.button == 1:
             self.mouse_button_pressed = "left"
-            if event.dblclick and self.add_remove_enabled:
-                if len(self.data_x) == 0:
-                    return
-                width, height = self.get_circle_dims()
-                xl = self.ax.get_xlim()
-                yl = self.ax.get_ylim()
-                yw = yl[-1] - yl[0]
-                xw = xl[-1] - xl[0]
-                idx = np.argmin(((self.data_x - event.xdata) / xw) ** 2 + ((self.data_y - event.ydata) / yw) ** 2)
-                marker = patches.Ellipse((self.data_x[idx], self.data_y[idx]), width=width, height=height, color='red', fill=False, lw=1, picker=5, label=str(len(self.picked_idx)))
-                self.ax.add_patch(marker)
-                self.markers.append(marker)
-                self.picked_idx.append(idx)
-                self.canvas.draw()
-                self.set_index_textbox(str(idx))
-        # elif event.button == 3:
         else:
             self.mouse_button_pressed = "right"
 
@@ -213,12 +202,21 @@ class IndexPickingView(tk.Toplevel):
             self.data_y_combo.current(self.index_y)
         if self.index_x:
             self.data_x_combo.current(self.index_x)
+
+    
+    def update_slope(self):
+        x0 = self.data_x[self.picked_idx[0]] if len(self.data_x) >= self.picked_idx[0] else self.picked_idx[0]
+        y0 = self.data_y[self.picked_idx[0]]
+        x1 = self.data_x[self.picked_idx[1]] if len(self.data_x) >= self.picked_idx[1] else self.picked_idx[1]
+        y1 = self.data_y[self.picked_idx[1]]
+        slope = (y1 - y0) / (x1 - x0)
+        self.set_slope_textbox(str(slope))
         
 
-    def set_index_textbox(self, text):
-        self.index_textbox.config(state="normal")
-        self.index_textbox.delete(0, tk.END)
-        self.index_textbox.insert(0, text)
-        self.index_textbox.config(state="readonly")
+    def set_slope_textbox(self, text):
+        self.slope_textbox.config(state="normal")
+        self.slope_textbox.delete(0, tk.END)
+        self.slope_textbox.insert(0, text)
+        self.slope_textbox.config(state="readonly")
         self.clipboard_clear()
         self.clipboard_append(text)

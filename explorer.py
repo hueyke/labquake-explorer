@@ -12,6 +12,7 @@ from views.pointsPickingView import PointsPickingView
 from views.indexPickingView import IndexPickingView
 from views.slopeExtractingView import SlopeExtractingView
 from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
+from views.cohesiveZoneModelFittingView import CohesiveZoneModelFittingView
 import tpc5
 
 class EventExplorer:
@@ -19,7 +20,7 @@ class EventExplorer:
         self.root = root
         self.root.title("Event Explorer")
         gap = 100
-        self.root.geometry(f"300x{self.root.winfo_screenheight()-gap * 2}+{gap}+{gap}")
+        self.root.geometry(f"300x{self.root.winfo_screenheight()-gap * 3}+{gap}+{gap}")
 
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
@@ -33,6 +34,7 @@ class EventExplorer:
         self.run_menu.add_command(label="Pick Events", command=self.pick_events)
         self.event_menu = tk.Menu(root, tearoff=0)
         self.event_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
+        self.event_menu.add_command(label="Fit Cohesive Zone Model", command=self.fit_cohesive_zone_model)
         self.event_array_menu = tk.Menu(root, tearoff=0)
         self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
         self.array_menu = tk.Menu(root, tearoff=0)
@@ -341,6 +343,13 @@ class EventExplorer:
         temp = path[path.find('events/[')+8::]
         event_idx = int(temp[:temp.find(']')])
         view = DynamicStrainArrivalPickingView(self, run_idx, event_idx)
+        
+    def fit_cohesive_zone_model(self):
+        path, item = self.get_full_path()
+        run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
+        temp = path[path.find('events/[')+8::]
+        event_idx = int(temp[:temp.find(']')])
+        view = CohesiveZoneModelFittingView(self, run_idx, event_idx)
 
     def pick_indicies(self):
         item = self.data_tree.selection()[0]

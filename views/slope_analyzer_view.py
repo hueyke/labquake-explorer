@@ -6,7 +6,7 @@ import matplotlib.patches as patches
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-class SlopeExtractingView(tk.Toplevel):
+class SlopeAnalyzerView(tk.Toplevel):
     def __init__(self, parent, item_y=None, item_x=None):
         self.root = parent.root
         super().__init__(self.root)

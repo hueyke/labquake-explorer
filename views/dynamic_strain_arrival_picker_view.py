@@ -9,7 +9,7 @@ import scipy
 from scipy import signal
 import warnings
 
-class DynamicStrainArrivalPickingView(tk.Toplevel):
+class DynamicStrainArrivalPickerView(tk.Toplevel):
     def __init__(self, parent, run_idx, event_idx):
         self.parent = parent
         super().__init__(self.parent.root)

@@ -1,29 +1,48 @@
+import os
+import h5py
+import sys
+import tpc5
 import tkinter as tk
+import numpy as np
+from numbers import Number
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import simpledialog
 from tkinter.messagebox import askokcancel, showinfo, WARNING
-import numpy as np
-import os
-import h5py
-from numbers import Number
-from views.simplePlottingView import SimplePlottingView
-from views.pointsPickingView import PointsPickingView
-from views.indexPickingView import IndexPickingView
-from views.slopeExtractingView import SlopeExtractingView
-from views.dynamicStrainArrivalPickingView import DynamicStrainArrivalPickingView
-from views.cohesiveZoneModelFittingView import CohesiveZoneModelFittingView
-import tpc5
+from views.simple_plot_view import SimplePlotView
+from views.point_selector_view import PointsSelectorView
+from views.index_picker_view import IndexPickerView
+from views.slope_analyzer_view import SlopeAnalyzerView
+from views.dynamic_strain_arrival_picker_view import DynamicStrainArrivalPickerView
+from views.czm_fitter_view import CZMFitterView
+
 
 class EventExplorer:
+    # Class constants for configuration
+    WINDOW_GAP = 100
+    WINDOW_WIDTH = 300
+    WINDOW_TITLE = "Event Explorer"
+    
     def __init__(self, root):
         self.root = root
-        self.root.title("Event Explorer")
-        gap = 100
-        self.root.geometry(f"300x{self.root.winfo_screenheight()-gap * 3}+{gap}+{gap}")
+        self.root.title(self.WINDOW_TITLE)
 
+        # Set up window close handlers
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # Store references to child windows
+        self.child_windows = []
+
+        # Geometry
+        screen_height = self.root.winfo_screenheight()
+        window_height = screen_height - (self.WINDOW_GAP * 3)
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
+        self.root.geometry(f"{self.WINDOW_WIDTH}x{window_height}+{self.WINDOW_GAP}+{self.WINDOW_GAP}")
+        
+        # Force window to front
+        self.root.lift()
+        self.root.focus_force()
 
         # Treeview
         self.data_tree = None
@@ -61,6 +80,38 @@ class EventExplorer:
         self.active_context_menu = None
         root.bind("<Delete>", self.on_delete)
 
+    def on_closing(self):
+        """Handle cleanup when the main window is closing"""
+        try:
+            # Close all child windows first
+            for window in self.child_windows[:]:  # Create a copy of the list to avoid modification during iteration
+                try:
+                    if window.winfo_exists():
+                        window.destroy()
+                except Exception as e:
+                    print(f"Error closing child window: {e}")
+                self.child_windows.remove(window)
+            
+            # Clean up any open file handles
+            if hasattr(self, 'data') and self.data is not None:
+                # Close any open HDF5 files
+                for key, value in self.data.items():
+                    if isinstance(value, h5py.File):
+                        try:
+                            value.close()
+                        except Exception as e:
+                            print(f"Error closing HDF5 file: {e}")
+            
+            # Destroy the main window
+            self.root.destroy()
+            # Force Python to exit
+            sys.exit(0)
+
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+            # Ensure the window is destroyed even if there's an error
+            self.root.destroy()
+            sys.exit(1)
 
     def load_file(self):
         data_path = filedialog.askopenfilename(
@@ -196,7 +247,7 @@ class EventExplorer:
         data = self.get_data(self.data, path)
         if type(data) is np.ndarray:
             print(f"plotting {item}")
-            view = SimplePlottingView(self)
+            view = SimplePlotView(self)
             view.ax.plot(data)
             view.ax.set_xlabel('index')
             view.ax.set_ylabel(item)
@@ -320,8 +371,9 @@ class EventExplorer:
         idx_min = np.argmin(y)
         idx_max = np.argmax(y)
         picked_idx = [idx_max, idx_min]
-        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=False,
+        view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=False,
                                  xlabel='index', ylabel=item, title=path)
+        self.child_windows.append(view)
         
     def pick_events(self):
         path, item = self.get_full_path()
@@ -333,33 +385,38 @@ class EventExplorer:
             picked_idx = self.get_data(self.data, self.get_full_path(parent_id)[0] + "/event_indices")
         else:
             picked_idx = []
-        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=True, 
+        view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=True, 
                                  callback=lambda data: self.set_data(self.data, save_path, data, add_key=True),
                                  xlabel='index', ylabel=item, title=path)
+        self.child_windows.append(view)
         
     def pick_strain_array_arrivals(self):
         path, item = self.get_full_path()
         run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
         temp = path[path.find('events/[')+8::]
         event_idx = int(temp[:temp.find(']')])
-        view = DynamicStrainArrivalPickingView(self, run_idx, event_idx)
+        view = DynamicStrainArrivalPickerView(self, run_idx, event_idx)
+        self.child_windows.append(view)
         
     def fit_cohesive_zone_model(self):
         path, item = self.get_full_path()
         run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
         temp = path[path.find('events/[')+8::]
         event_idx = int(temp[:temp.find(']')])
-        view = CohesiveZoneModelFittingView(self, run_idx, event_idx)
+        view = CZMFitterView(self, run_idx, event_idx)
+        self.child_windows.append(view)
 
     def pick_indicies(self):
         item = self.data_tree.selection()[0]
         item_name = self.data_tree.item(item)['text'].split(':')[0]
-        view = IndexPickingView(self, item_y=item_name)
+        view = IndexPickerView(self, item_y=item_name)
+        self.child_windows.append(view)
 
     def extract_slope(self):
         item = self.data_tree.selection()[0]
         item_name = self.data_tree.item(item)['text'].split(':')[0]
-        view = SlopeExtractingView(self, item_y=item_name)
+        view = SlopeAnalyzerView(self, item_y=item_name)
+        self.child_windows.append(view)
 
     def extract_events(self):
         item = self.data_tree.selection()[0]
@@ -466,9 +523,10 @@ class EventExplorer:
         y = self.get_data(self.data, item_path)
         x = np.arange(len(y))
         picked_idx = [int(len(y)/3), int(len(y)/3*2)]
-        view = PointsPickingView(self, x, y, picked_idx, add_remove_enabled=False, 
+        view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=False, 
                                  callback=lambda idx: self.extract_run(idx),
                                  xlabel='index', ylabel=item_name, title=item_path)
+        self.child_windows.append(view)
         
     def extract_run(self, idx, name=None):
         run = dict()
@@ -513,5 +571,5 @@ class EventExplorer:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    data_viewer = EventExplorer(root)
+    event_explorer = EventExplorer(root)
     root.mainloop()

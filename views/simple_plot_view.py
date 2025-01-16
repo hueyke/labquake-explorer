@@ -3,7 +3,7 @@ from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-class SimplePlottingView(tk.Toplevel):
+class SimplePlotView(tk.Toplevel):
     def __init__(self, parent):
         self.parent = parent
         super().__init__(self.parent.root)
@@ -32,5 +32,5 @@ if __name__ == "__main__":
         def __init__(self, root):
             self.root = root
     parent = Parent(root)
-    view = SimplePlottingView(parent)
+    view = SimplePlotView(parent)
     root.mainloop()

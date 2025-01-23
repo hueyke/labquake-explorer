@@ -1,7 +1,7 @@
 import os
 import h5py
 import sys
-import tpc5
+import backup.tpc5 as tpc5
 import tkinter as tk
 import numpy as np
 from numbers import Number
@@ -560,13 +560,6 @@ class EventExplorer:
         elif type(parent) is list:
             parent.pop(int(item_name.split(']')[0].split('[')[1]))
         self.refresh_tree()
-        
-
-    # def on_test(self):
-    #     selected_item = self.data_tree.selection()
-    #     path, item = self.get_full_path()
-    #     data = self.get_data(self.data, path)
-    #     test_view = TestDataUpdatingView(self, data, path, self.set_data)
 
 
 if __name__ == "__main__":

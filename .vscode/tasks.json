@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": {
+        "label": "Setup Environment",
+        "type": "shell",
+        "command": "source venv/bin/activate && pip install -e .",
+        "windows": {
+            "command": ".\\venv\\Scripts\\activate && pip install -e ."
+        },
+        "presentation": {
+            "reveal": "always"
+        },
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        }
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Event Explorer",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/event_explorer/main.py",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        }
+    ]
+}

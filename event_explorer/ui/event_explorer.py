@@ -1,6 +1,8 @@
 """Main UI class for Event Explorer"""
 import sys
 import tkinter as tk
+import numpy as np
+import os
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -84,10 +86,10 @@ class EventExplorer:
     def load_file(self) -> None:
         file_path = filedialog.askopenfilename(
             title="Select data file",
-            filetypes=[
-                ("Data files", "*.npz;*.h5;*.hdf5"),
+            filetypes=(
+                ("Data files", "*.npz *.h5 *.hdf5"),
                 ("All files", "*.*")
-            ]
+            )
         )
         if not file_path:
             return
@@ -103,12 +105,11 @@ class EventExplorer:
     def save_file(self) -> None:
         file_path = filedialog.asksaveasfilename(
             title="Save data file",
-            defaultextension=".npz",
-            filetypes=[
-                ("NPZ file", "*.npz"),
-                ("HDF5 file", "*.h5;*.hdf5"),
-                ("All files", "*.*")
-            ]
+            filetypes=(
+                ("NPZ file", ".npz"),
+                ("HDF5 file", ".h5 .hdf5")
+                ("All files", "*")
+            )
         )
         if not file_path:
             return
@@ -159,8 +160,32 @@ class EventExplorer:
         elif isinstance(value, (int, float)):
             return f"{key}: {value}"
         elif isinstance(value, (list, np.ndarray)):
-            return f"{key}: array[{len(value)}]"
+            try:
+                if len(value) == 1:
+                    return f"{key}: {value[0]}"
+                else:
+                    return f"{key}: array[{len(value)}]"
+            except:
+                if value.size == 1:
+                    return f"{key}: {value.flatten()[0]}"
+                else:
+                    return f"{key}: array[{value.size}]"
         return f"{key}: {type(value).__name__}"
+    
+    def get_full_path(self, item=None):
+        def clean_up_text(s):
+            return s.split(':')[0].strip()
+        if item is None:
+            item = self.data_tree.selection()[0]
+        parent_iid = self.data_tree.parent(item)
+        node = []
+        # go backward until reaching root
+        while parent_iid != '':
+            node.insert(0, clean_up_text(self.data_tree.item(parent_iid)['text']))
+            parent_iid = self.data_tree.parent(parent_iid)
+        i = clean_up_text(self.data_tree.item(item, "text"))
+        return os.path.join(*node, i), i
+    
 
     def pick_events(self) -> None:
         path = self.get_selected_path()
@@ -213,7 +238,7 @@ class EventExplorer:
     def on_double_click(self, event):
         path, item = self.get_full_path()
         print(f"Double-clicked on item: {path}")
-        data = self.get_data(self.data, path)
+        data = self.data_manager.get_data(path)
         if type(data) is np.ndarray:
             print(f"plotting {item}")
             view = SimplePlotView(self)

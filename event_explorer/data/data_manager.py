@@ -25,53 +25,97 @@ class DataManager:
             self.data = data["experiment"][()]
 
     def _load_hdf5(self, path: Path) -> None:
-        """Load data from HDF5 file"""
         with h5py.File(path, 'r') as h5data:
-            self.data = {}
-            # Load name from attributes if present, else from filename
-            self.data["name"] = h5data.attrs.get('name', path.stem.split("_proc")[0].split("l")[0])
-            
-            def load_group(group, target_dict):
+            def load_dataset(item):
+                try:
+                    data = np.array(item)
+                    if data.dtype.kind == 'S' or data.dtype.kind == 'O':
+                        if isinstance(data.flat[0], bytes):
+                            if data.size == 1:
+                                return data.flat[0].decode('utf-8')
+                            return [x.decode('utf-8') for x in data.flat]
+                    if data.size == 1:  # Convert length-1 arrays to numbers
+                        return data.item()
+                    return data
+                except Exception as exc:
+                    print(f"Dataset loading error: {str(exc)}")
+                    return None
+    
+            # Rest of the code remains unchanged
+            def load_group(group):
+                result = {}
                 for key in group.keys():
-                    if isinstance(group[key], h5py.Group):
-                        target_dict[key] = {}
-                        load_group(group[key], target_dict[key])
-                    else:
-                        value = np.array(group[key])
-                        if value.dtype.kind == 'S':  # Handle string data
-                            value = value.astype(str)
-                        target_dict[key] = value
-                        
-            load_group(h5data, self.data)
+                    try:
+                        item = group[key]
+                        if isinstance(item, h5py.Group):
+                            if key == 'runs':
+                                try:
+                                    num_runs = max(int(k) for k in item.keys()) + 1
+                                    result[key] = [load_group(item[str(i)]) for i in range(num_runs)]
+                                except ValueError:
+                                    result[key] = load_group(item)
+                            elif key == 'events':
+                                try:
+                                    num_events = max(int(k) for k in item.keys()) + 1
+                                    result[key] = [load_group(item[str(i)]) for i in range(num_events)]
+                                except ValueError:
+                                    result[key] = load_group(item)
+                            elif key in ['strain', 'original']:
+                                result[key] = load_group(item)
+                            else:
+                                result[key] = load_group(item)
+                        else:
+                            result[key] = load_dataset(item)
+                    except Exception as exc:
+                        print(f"Error loading {key}: {str(exc)}")
+                return result
+    
+            self.data = load_group(h5data)
 
     def save_file(self, path: Path) -> None:
-        """Save data to file"""
         if not self.data:
             raise ValueError("No data to save")
-            
+    
         if path.suffix.lower() == '.npz':
             np.savez(path, experiment=self.data)
         elif path.suffix.lower() in ['.h5', '.hdf5']:
             with h5py.File(path, 'w') as f:
-                # Save name as attribute since HDF5 doesn't support string datasets well
-                f.attrs['name'] = self.data.get('name', '')
-                
-                for key, value in self.data.items():
-                    if key == 'name':
-                        continue
-                    if isinstance(value, (np.ndarray, list)):
-                        f.create_dataset(key, data=np.array(value))
-                    elif isinstance(value, (int, float)):
-                        f.create_dataset(key, data=value)
-                    elif isinstance(value, str):
-                        f.create_dataset(key, data=np.string_(value))
-                    elif isinstance(value, dict):
-                        group = f.create_group(key)
+                def save_item(group, key, value):
+                    if isinstance(value, dict):
+                        subgroup = group.create_group(key)
                         for k, v in value.items():
-                            if isinstance(v, (np.ndarray, list)):
-                                group.create_dataset(k, data=np.array(v))
-        else:
-            raise ValueError(f"Unsupported file type: {path.suffix}")
+                            save_item(subgroup, k, v)
+                    elif isinstance(value, (list, np.ndarray)):
+                        if len(value) > 0 and isinstance(value[0], (dict, list, np.ndarray)):
+                            subgroup = group.create_group(key)
+                            for i, item in enumerate(value):
+                                save_item(subgroup, str(i), item)
+                        else:
+                            arr = np.array(value)
+                            if arr.dtype == object:
+                                if all(isinstance(x, (int, np.integer)) for x in arr.flat):
+                                    arr = arr.astype(np.int64)
+                                elif all(isinstance(x, (float, np.floating)) for x in arr.flat):
+                                    arr = arr.astype(np.float64)
+                                elif all(isinstance(x, bool) for x in arr.flat):
+                                    arr = arr.astype(np.int8)
+                                else:
+                                    arr = np.array([str(x).encode() for x in arr.flat]).reshape(arr.shape)
+                            elif arr.dtype.kind == 'U':
+                                arr = np.array([x.encode() for x in arr.flat]).reshape(arr.shape)
+                            group.create_dataset(key, data=arr, compression="gzip")
+                    elif isinstance(value, str):
+                        group.create_dataset(key, data=value.encode())
+                    elif isinstance(value, (int, float, bool, np.number)):
+                        group.create_dataset(key, data=value)
+                    else:
+                        try:
+                            group.create_dataset(key, data=np.array(value), compression="gzip")
+                        except (ValueError, TypeError) as e:
+                            print(f"Warning: Could not save {key}: {e}")
+    
+                for k, v in self.data.items():
+                    save_item(f, k, v)
 
     def extract_events(self, indices: List[int], window_size: float) -> List[Dict]:
         """Extract events using provided indices"""

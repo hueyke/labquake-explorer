@@ -9,8 +9,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 class PointsSelectorView(tk.Toplevel):
     def __init__(self, parent, x, y, picked_idx, add_remove_enabled=False, callback=None, xlabel=None, ylabel=None, title=None):
         self.root = parent.root
+        self.parent = parent
         super().__init__(self.root)
-        self.title("Points Picking View")
+        self.title("Points Selector")
 
         # Buttons
         if callback:
@@ -19,7 +20,8 @@ class PointsSelectorView(tk.Toplevel):
             self.save_button.pack(side=tk.TOP, padx=5)
 
         # Matplotlib Figure and Tkinter Canvas
-        self.fig, self.ax = plt.subplots()
+        self.fig = plt.Figure()
+        self.ax = self.fig.add_subplot(111)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
@@ -156,7 +158,7 @@ class PointsSelectorView(tk.Toplevel):
 
     def save(self):
         self.picked_idx.sort()
-        self.callback(self.picked_idx)
+        self.callback(np.array(self.picked_idx))
 
 if __name__ == "__main__":
     root = tk.Tk()

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+from utils import cohesive_crack as CohesiveCrack
 
 class DataProcessor:
     """
@@ -75,3 +76,87 @@ class DataProcessor:
                 ]
         
         return self.processed_data
+    
+    @staticmethod
+    def voltage_to_strain(raw_voltage: float | np.ndarray[float]) -> float | np.ndarray[float]:
+        """
+        Convert raw voltage readings from a strain gauge circuit to strain.
+
+        Args:
+            raw_voltage (float): The measured voltage output from the Wheatstone bridge circuit (in volts).
+            
+        Constants:
+            Vex  (float): Excitation voltage applied to the Wheatstone bridge (in volts). Default is 4.98 V.
+            GF   (float): Gauge factor of the strain gauge (dimensionless). Default is 2.12.
+            Rg   (float): Resistance of the strain gauge (in ohms). Default is 350 Ohm.
+            Gain (float): Amplification factor of the signal (dimensionless). Default is 1000.
+        
+        Returns:
+            float: Calculated strain (dimensionless).
+        """
+        Vex = 4.98    # Excitation voltage in volts
+        GF = 2.12     # Gauge factor
+        Rg = 350      # Resistance of strain gauge in ohms (not directly used)
+        Gain = 1000   # Amplification factor
+        
+        strain = raw_voltage / Vex / Gain * 2 / GF
+        return strain
+
+    @staticmethod
+    def shear_strain_to_stress(E: float, poisson_ratio: float, strain: float | np.ndarray[float]) -> float | np.ndarray[float]:
+        """
+        Calculate stress from shear strain by converting Young's modulus (E) to shear modulus (G).
+        
+        Args:
+            E (float): Young's modulus (elastic modulus) in units of stress (e.g., Pa).
+            poisson_ratio (float): Poisson's ratio (dimensionless).
+            strain (float): Shear strain (dimensionless).
+            
+        Returns:
+            float: Shear stress in the same units as Young's modulus.
+        """
+        G = E / (2 * (1 + poisson_ratio))
+        stress = G * strain
+        return stress
+
+    # @staticmethod
+    # def highpass_filter(data, cutoff, fs, order=4):
+    #     """
+    #     Apply a highpass Butterworth filter to the data.
+        
+    #     Args:
+    #         data: Input data to filter
+    #         cutoff: Cutoff frequency
+    #         fs: Sampling frequency
+    #         order: Filter order (default=4)
+            
+    #     Returns:
+    #         numpy.ndarray: Filtered data
+    #     """
+    #     nyquist = 0.5 * fs
+    #     normal_cutoff = cutoff / nyquist
+    #     b, a = scipy.signal.butter(order, normal_cutoff, btype='high', analog=False)
+    #     filtered_data = scipy.signal.filtfilt(b, a, data)
+    #     return filtered_data
+
+    # @staticmethod
+    # def fitting_function(X_c: float, C_f: float, Gamma: float, x: float | np.ndarray, y: float) -> float:
+    #     """
+    #     Cohesive zone model fitting function.
+        
+    #     Args:
+    #         X_c (float): Critical distance
+    #         C_f (float): Fracture speed
+    #         Gamma (float): Fracture energy
+    #         x (float | np.ndarray): Position
+    #         y (float): y-coordinate
+            
+    #     Returns:
+    #         float: Calculated stress
+    #     """
+    #     E = 51e9      # Young's modulus (Pa)
+    #     nu = 0.25     # Poisson's ratio
+    #     C_s = 2760    # Shear wave speed (m/s)
+    #     C_d = 4790    # Longitudinal wave speed (m/s)
+        
+    #     return CohesiveCrack.delta_sigma_xy(x, y, X_c, C_f, C_s, C_d, nu, Gamma, E)

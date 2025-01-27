@@ -2,58 +2,120 @@
 import h5py
 import numpy as np
 import utils.tpc5 as tpc5
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 class EventProcessor:
-    def extract_events(self, data: Dict[str, Any], indices: List[int], window: float) -> List[Dict]:
-        """Extract events from data"""
+    def __init__(self, data_path: Optional[Path] = None):
+        self.data_path = data_path
+
+    def set_data_path(self, data_path: Path) -> None:
+        """Set the base path for resolving relative file paths"""
+        self.data_path = data_path
+
+    def extract_events(self, run_data: Dict[str, Any], event_indices: List[int], window: float) -> List[Dict]:
+        """Extract events from run data using provided indices and time window
+        
+        Args:
+            run_data: Dictionary containing run data including strain data
+            event_indices: List of indices marking event locations
+            window: Time window size (in seconds) before and after each event
+            
+        Returns:
+            List of extracted event dictionaries
+        """
         events = []
-        for idx in indices:
-            event = self._extract_single_event(data, idx, window)
+        for i, idx in enumerate(event_indices):
+            event = {}
+            event_time = run_data["time"][idx]
+            
+            # Extract time window around event
+            idx_beg = np.argmin(np.abs(event_time - window - run_data["time"]))
+            idx_end = np.argmin(np.abs(event_time + window - run_data["time"]))
+            idx_event = range(idx_beg, idx_end + 1)
+            
+            # Store basic event info
+            event['event_time'] = event_time
+            event['time'] = run_data['time'][idx_event]
+
+            try:
+                # Store mechanical data
+                mechanical_fields = [
+                    'normal_stress', 'shear_stress', 'friction',
+                    'LP_displacement', 'LP_velocity', 'displacement'
+                ]
+                
+                for field in mechanical_fields:
+                    if field in run_data:
+                        event[field] = run_data[field][idx_event]
+
+                # Handle strain data if available
+                if 'strain' in run_data:
+                    event['strain'] = self._process_strain_data(
+                        run_data, event_time, window, idx_event
+                    )
+
+            except Exception as e:
+                print(f"Warning: Error processing event {i}: {str(e)}")
+                # Fallback: store all available array data for this index
+                for key in run_data:
+                    if key == "events":
+                        continue
+                    if isinstance(run_data[key], (np.ndarray, list)):
+                        try:
+                            event[key] = run_data[key][idx_event]
+                        except IndexError:
+                            event[key] = run_data[key][idx]
+            
             events.append(event)
+        
         return events
 
-    def _extract_single_event(self, data: Dict[str, Any], idx: int, window: float) -> Dict:
-        """Extract single event data"""
-        event = {}
-        event_time = data["time"][idx]
-        
-        idx_beg = np.argmin(np.abs(event_time - window - data["time"]))
-        idx_end = np.argmin(np.abs(event_time + window - data["time"]))
-        idx_event = range(idx_beg, idx_end + 1)
-        
-        event['event_time'] = event_time
-        event['time'] = data['time'][idx_event]
-        
-        # Extract measurements
-        for key, value in data.items():
-            if key != "events" and isinstance(value, (np.ndarray, list)):
-                try:
-                    event[key] = value[idx_event]
-                except IndexError:
-                    event[key] = value[idx]
-        
-        # Process strain data if available
-        if 'strain' in data:
-            event['strain'] = self._process_strain_data(data, event_time, window)
+    def _process_strain_data(self, run_data: Dict[str, Any], event_time: float, 
+                           window: float, idx_event: range) -> Dict[str, Any]:
+        """Process strain data for a single event"""
+        if self.data_path is None:
+            raise ValueError("Data path not set. Call set_data_path() first.")
             
-        return event
-
-    def _process_strain_data(self, data: Dict[str, Any], event_time: float, window: float) -> Dict:
-        """Process strain data for event"""
-        strain_data = {}
-        with h5py.File(data['strain']['filename'], 'r') as f:
+        # Resolve the strain file path relative to the data file path
+        strain_file = self.data_path.parent / run_data['strain']['filename']
+        with h5py.File(strain_file, 'r') as f:
             n_channels = tpc5.getNChannels(f)
-            sampling_rate = tpc5.getSampleRate(f, 1, 1)
+            n_samples = tpc5.getNSamples(f, 1)
             trigger_sample = tpc5.getTriggerSample(f, 1, 1)
+            sampling_rate = tpc5.getSampleRate(f, 1, 1)
             
-            time_range = self._calculate_time_range(f, trigger_sample, sampling_rate)
-            strain_data = self._extract_strain_measurements(
-                f, time_range, event_time, window, n_channels
-            )
+            # Calculate time series
+            start_time = -trigger_sample / sampling_rate
+            end_time = (n_samples - trigger_sample) / sampling_rate
+            ts = np.arange(start_time, end_time, 1/sampling_rate)
+            ts += run_data['strain']['time_offset'] + run_data['time'][0] - ts[0]
+
+            # Get indices for time window
+            time_before = event_time - window
+            time_after = event_time + window
+            idx_before = np.argmin(np.abs(ts - time_before))
+            idx_after = np.argmin(np.abs(ts - time_after))
+            tt = ts[idx_before:idx_after]
             
-        return strain_data
+            # Extract strain data
+            y = np.zeros((n_channels, len(tt)))
+            for j in range(n_channels):
+                y[j, :] = tpc5.getVoltageData(f, j + 1)[idx_before:idx_after]
+                y[j, :] -= y[j, 0:int(y.shape[1] / 100)].mean()
+            
+            # Return formatted strain data
+            return {
+                'filename_downsampled': run_data['strain'].get('filename_downsampled', ''),
+                'filename': run_data['strain']['filename'],
+                'time': run_data['time'][0] + run_data['strain']['time_offset'] + 
+                       run_data['strain']['time'][idx_event],
+                'raw': run_data['strain']['raw'][:, idx_event],
+                'original': {
+                    'time': tt,
+                    'raw': y
+                }
+            }
 
     def get_data_at_path(self, data: Dict[str, Any], path: str) -> Any:
         """Get data at specified path"""

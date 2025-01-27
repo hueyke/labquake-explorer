@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 from scipy import signal
 from matplotlib.widgets import Cursor
@@ -101,7 +102,7 @@ class CZMFitterView(tk.Toplevel):
         self.filter_button.pack(side=tk.LEFT, padx=5)
 
     def create_matplotlib_figure(self):
-        self.fig = plt.figure(figsize=(10, 6))
+        self.fig = Figure(figsize=(10, 6))
         self.gs = self.fig.add_gridspec(2, hspace=0.3)
         self.axs = self.gs.subplots(sharex=True)
         for ax in self.axs:

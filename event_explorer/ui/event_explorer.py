@@ -3,7 +3,8 @@ import sys
 import tkinter as tk
 import numpy as np
 import os
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, simpledialog, messagebox
+from tkinter.messagebox import askokcancel, showinfo, WARNING
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -23,6 +24,7 @@ class EventExplorer:
         self.data_manager = DataManager()
         self.child_windows: List[tk.Toplevel] = []
         self.data_tree: Optional[ttk.Treeview] = None
+        self.active_context_menu: Optional[tk.Menu] = None
         
         self.setup_window()
         self.create_widgets()
@@ -59,6 +61,12 @@ class EventExplorer:
         self.array_menu.add_command(label="Extract Slopes", command=self.extract_slope)
         self.array_menu.add_command(label="Extract Run", command=self.pick_run)
 
+        self.event_indices_menu = tk.Menu(self.root, tearoff=0)
+        self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
+
+        self.string_menu = tk.Menu(self.root, tearoff=0)
+        self.string_menu.add_command(label="Edit String", command=self.edit_string)
+
     def create_buttons(self) -> None:
         buttons = [
             ("Load", self.load_file, "normal", 0),
@@ -81,15 +89,14 @@ class EventExplorer:
         self.data_tree.heading("#0", text="[Data File]", anchor="w")
         
         self.data_tree.bind("<Double-1>", self.on_double_click)
+        self.data_tree.bind("<Button-1>", self.on_left_click)
+        self.data_tree.bind("<Button-2>", self.on_right_click)
         self.data_tree.bind("<Button-3>", self.on_right_click)
 
     def load_file(self) -> None:
         file_path = filedialog.askopenfilename(
             title="Select data file",
-            filetypes=(
-                ("Data files", "*.npz *.h5 *.hdf5"),
-                ("All files", "*.*")
-            )
+            filetypes=self.config.FILE_TYPES
         )
         if not file_path:
             return
@@ -107,7 +114,7 @@ class EventExplorer:
             title="Save data file",
             filetypes=(
                 ("NPZ file", ".npz"),
-                ("HDF5 file", ".h5 .hdf5")
+                ("HDF5 file", ".h5 .hdf5"),
                 ("All files", "*")
             )
         )
@@ -157,7 +164,7 @@ class EventExplorer:
     def format_tree_label(self, key: str, value: Any) -> str:
         if isinstance(value, str):
             return f"{key}: {value}"
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, (int, float, np.number)):
             return f"{key}: {value}"
         elif isinstance(value, (list, np.ndarray)):
             try:
@@ -188,9 +195,21 @@ class EventExplorer:
     
 
     def pick_events(self) -> None:
-        path = self.get_selected_path()
-        data = self.data_manager.get_data(path)
-        view = PointsSelectorView(self.root, data)
+        path, item = self.get_full_path()
+        y = self.data_manager.get_data(path)
+        x = np.arange(len(y))
+        save_path = path[:path.rfind('/')+1] + "event_indices"
+        parent_id = self.data_tree.parent(self.data_tree.selection()[0])
+        if self.has_child_named(parent_id, "event_indices"):
+            picked_idx = self.data_manager.get_data(self.get_full_path(parent_id)[0] + "/event_indices")
+        else:
+            picked_idx = []
+        def save_and_refresh(data):
+            self.data_manager.set_data(save_path, data, add_key=True)
+            self.refresh_tree()
+        view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=True, 
+                                 callback=save_and_refresh,
+                                 xlabel='index', ylabel=item, title=path)
         self.child_windows.append(view)
 
 
@@ -235,6 +254,68 @@ class EventExplorer:
                                  xlabel='index', ylabel=item_name, title=item_path)
         self.child_windows.append(view)
 
+    def extract_events(self):
+        """Handle UI for event extraction and delegate to EventProcessor"""
+        # Get selected item and paths
+        item_id = self.data_tree.selection()[0]
+        parent = self.data_tree.parent(item_id)
+        event_indices_path = self.get_full_path()[0]
+        parent_path = self.get_full_path(parent)[0]
+        events_path = f"{parent_path}/events"
+
+        # Check for existing events
+        if self.has_child_named(parent, "events"):
+            ans = askokcancel(
+                title="Confirmation", 
+                message=f'This procedure will replace all data in "{events_path}".', 
+                icon=WARNING
+            )
+            if not ans:
+                return
+
+        # Get window size from user
+        window = simpledialog.askfloat(
+            'Set event time window length', 
+            'Please set the duration before and after the event to be extracted.',
+            initialvalue=5
+        )
+        if window is None:
+            print('Event extraction aborted.')
+            return
+        print(f'Window set to (-{window}, {window})')
+
+        try:
+            # Get run data and indices
+            run_data = self.data_manager.get_data(parent_path)
+            event_indices = self.data_manager.get_data(event_indices_path)
+
+            # Extract events using EventProcessor
+            events = self.data_manager.event_processor.extract_events(
+                run_data,
+                event_indices,
+                window
+            )
+
+            # Save results
+            self.data_manager.set_data(events_path, events, add_key=True)
+            showinfo(title="Success", message="Events extracted.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to extract events: {str(e)}")
+
+    def edit_string(self):
+        """Edit a string value in the data structure"""
+        path, item = self.get_full_path()
+        data = self.data_manager.get_data(path)
+
+        new_string = simpledialog.askstring('Edit String', f'{path}', initialvalue=data)
+        if new_string is None:
+            print('Edit String aborted.')
+            return
+        
+        self.data_manager.set_data(path, new_string)
+        self.refresh_tree()
+            
     def on_double_click(self, event):
         path, item = self.get_full_path()
         print(f"Double-clicked on item: {path}")
@@ -252,11 +333,68 @@ class EventExplorer:
             print('list')
         else:
             print(data)
+        
+    def on_left_click(self, event):
+        if self.active_context_menu:
+            self.active_context_menu.unpost()
+
     def on_right_click(self, event):
+        # Clear previous menu
+        if self.active_context_menu:
+            self.active_context_menu.unpost()
         self.active_context_menu = None
-        item = self.data_tree.selection()[0]
+
+        try:
+            item = self.data_tree.selection()[0]
+        except:
+            item = None
         if not item:
             return
+
+        # data-structure-specific context menus
+        item_label = self.data_tree.item(item)['text'].split(':')
+        parent = self.data_tree.parent(item)
+        parent_name = self.data_tree.item(parent)['text'].split(':')[0] if parent else ""
+        grandparent = self.data_tree.parent(parent)
+        grandparent_name = self.data_tree.item(grandparent)['text'].split(':')[0] if grandparent else ""
+
+        if grandparent_name == "runs":
+            if item_label[0] == "event_indices":
+                self.active_context_menu = self.event_indices_menu
+            elif len(item_label) > 1 and "array" in item_label[1]:
+                self.active_context_menu = self.run_menu
+        elif grandparent_name == "events":
+            if len(item_label) > 1 and "array" in item_label[1]:
+                self.active_context_menu = self.event_array_menu
+            else:
+                self.active_context_menu = self.event_menu
+        elif parent_name == "events":
+            self.active_context_menu = self.event_menu
+
+        # general purpose context menus
+        if not self.active_context_menu:
+            path, _ = self.get_full_path()
+            data = self.data_manager.get_data(path)
+            if isinstance(data, str):
+                self.active_context_menu = self.string_menu
+            elif len(item_label) > 1 and "array" in item_label[1] and parent_name == "":
+                self.active_context_menu = self.array_menu
+
+        # post context menu
+        if self.active_context_menu:
+            self.active_context_menu.post(event.x_root, event.y_root)
+    
+    def has_child_name_contains(self, item_id, keyword):
+        if not item_id:
+            return False
+        children = self.data_tree.get_children(item_id)
+        return any(keyword in self.data_tree.item(child_id, "text") for child_id in children)
+    
+    def has_child_named(self, item_id, name):
+        if not item_id:
+            return False
+        children = self.data_tree.get_children(item_id)
+        return any(name == self.data_tree.item(child_id, "text").split(":")[0] for child_id in children)
 
     def on_delete(self, event):
         item_id = self.data_tree.selection()[0]
@@ -273,7 +411,6 @@ class EventExplorer:
         elif type(parent) is list:
             parent.pop(int(item_name.split(']')[0].split('[')[1]))
         self.refresh_tree()
-    # Additional view methods would go here...
 
     def on_closing(self) -> None:
         try:

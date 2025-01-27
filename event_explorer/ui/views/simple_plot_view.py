@@ -7,7 +7,7 @@ class SimplePlotView(tk.Toplevel):
     def __init__(self, parent):
         self.parent = parent
         super().__init__(self.parent.root)
-        self.title("Simple Plotting View")
+        self.title("Simple Plot")
 
         # Matplotlib Figure and Tkinter Canvas
         self.figure = Figure(figsize=(5, 4), dpi=100)

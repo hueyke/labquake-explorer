@@ -3,15 +3,21 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import numpy as np
 import h5py
+from event_explorer.data.event_processor import EventProcessor
+
 
 class DataManager:
     def __init__(self):
         self.data: Optional[Dict[str, Any]] = None
         self.data_path: Optional[Path] = None
+        self.data: Optional[Dict[str, Any]] = None
+        self.event_processor = EventProcessor()
 
     def load_file(self, path: Path) -> None:
         """Load data from a file"""
         self.data_path = path
+        self.event_processor.set_data_path(path)  # Set the data path in EventProcessor
+
         if path.suffix.lower() == '.npz':
             self._load_npz(path)
         elif path.suffix.lower() in ['.h5', '.hdf5']:
@@ -176,9 +182,6 @@ class DataManager:
         for i, part in enumerate(parts[:-1]):
             if part[0] == '[' and part[-1] == ']':
                 part = int(part[1:-1])
-            
-            if part not in current and add_key:
-                current[part] = {} if i < len(parts) - 2 else None
             current = current[part]
             
         last_key = parts[-1]

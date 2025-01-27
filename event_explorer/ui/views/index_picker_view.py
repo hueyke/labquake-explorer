@@ -10,7 +10,7 @@ class IndexPickerView(tk.Toplevel):
     def __init__(self, parent, item_y=None, item_x=None):
         self.root = parent.root
         super().__init__(self.root)
-        self.title("Index Picking View")
+        self.title("Index Picker")
         self.grid_rowconfigure(2, weight=1)
         self.grid_columnconfigure(2, weight=1)
 

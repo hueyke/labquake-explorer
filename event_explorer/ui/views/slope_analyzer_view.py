@@ -10,7 +10,7 @@ class SlopeAnalyzerView(tk.Toplevel):
     def __init__(self, parent, item_y=None, item_x=None):
         self.root = parent.root
         super().__init__(self.root)
-        self.title("Slope Extracting View")
+        self.title("Slope Analyzer")
         self.parent = parent
 
         # dummy resizing column is 3

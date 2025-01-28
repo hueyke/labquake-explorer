@@ -250,7 +250,7 @@ class CZMFitterView(tk.Toplevel):
             
             # Also update the parent data structure to ensure persistence
             self.data_manager.set_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/czm_parms", params, True)
-            
+            self.parent.refresh_tree()
             print(f"Saved parameters for event {self.event_idx}: {params}")
 
     def update_plot(self, event=None):

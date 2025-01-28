@@ -75,7 +75,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
         self.filter_window_length_box = ttk.Spinbox(self, from_=2, to=201, increment=2, textvariable=self.filter_window_length)
         self.filter_window_length_box.grid(row=3, column=3, padx=5, pady=5, sticky="ew")
         # [3, 4]
-        self.filter_toggle = tk.Button(self, text="On", relief="sunken", command=self.toggle_filter)
+        self.filter_toggle = tk.Button(self, text="Filter Off", relief="raised", command=self.toggle_filter)
         self.filter_toggle.grid(row=3, column=4, padx=5, pady=5, sticky="ew")
         
 
@@ -93,7 +93,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
         self.currently_dragging = False
         self.rupture_speed = None
         self.fitted_line = None
-        self.filtering = True
+        self.filtering = False
         self.xlim = None
         self.init_event_combobox()
         self.on_selected_event_changed()
@@ -110,11 +110,14 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
         self.filter_window_length_box.bind("<ButtonRelease>", self.on_filter_window_length_box_changed)
 
     def plot(self):
-        exp_number = int(self.parent.data["name"][1:5])
+        exp_number = int(self.parent.data_manager.get_data("name")[1:5])
         # print(exp_number)
         linestyle = ".-"
 
         self.fig.clear()
+        self.fitting_markers = []
+        self.not_fitting_markers = []
+        self.fitted_line = []
         gs = self.fig.add_gridspec(5, hspace=0, height_ratios=[1, 1, 1, 1, 10])
         self.axs = gs.subplots(sharex=True)
         self.axs[0].set_ylabel(r"$\tau$ (MPa)")
@@ -184,7 +187,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
         else:
             self.axs[0].set_xlim(self.xlim)
         
-        self.fig.suptitle("%s run%02d event%d" % (self.parent.data["name"], 
+        self.fig.suptitle("%s run%02d event%d" % (self.parent.data_manager.get_data("name"), 
                                                   self.run_idx, 
                                                   self.event_idx))
         
@@ -316,7 +319,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
         print(f"Saved runs[{self.run_idx}]/events[{self.event_idx}] to data.")
 
     def init_event_combobox(self):
-        n_events = len(self.parent.data["runs"][self.run_idx]["events"])
+        n_events = len(self.parent.data_manager.get_data(f"runs/[{self.run_idx}]/events"))
         options = [f"{i}" for i in range(n_events)]
         self.event_combobox.config(values=options, state="readonly")
         self.event_combobox.current(self.event_idx)
@@ -339,7 +342,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
 
     def on_selected_event_changed(self, event=None):
         self.event_idx = int(self.event_combobox.get())
-        self.event = self.parent.data["runs"][self.run_idx]["events"][self.event_idx]
+        self.event = self.parent.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]")
         if "enabled_channels" in self.event["strain"]:
             self.enabled_channels = self.event["strain"]["enabled_channels"]
         else:
@@ -383,10 +386,10 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
     def toggle_filter(self):
         self.filtering = not self.filtering
         if self.filtering:
-            self.filter_toggle.config(text="On")
+            self.filter_toggle.config(text="Filter On")
             self.filter_toggle.config(relief="sunken")
         else:
-            self.filter_toggle.config(text="Off")
+            self.filter_toggle.config(text="Filter Off")
             self.filter_toggle.config(relief="raised")
         self.plot()
         self.update_fitted_line()

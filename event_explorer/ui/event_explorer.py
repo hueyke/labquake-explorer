@@ -30,6 +30,14 @@ class EventExplorer:
         self.create_widgets()
         self.setup_bindings()
 
+
+        # debug
+        file_path = Path("/Users/hueyke/sources/PSU-Dynamic-Strain/Data/p5993e.npz")
+        self.data_manager.load_file(file_path)
+        self.save_button.configure(state="normal")
+        self.refresh_tree()
+        print(f"File loaded: {file_path}")
+
     def setup_window(self) -> None:
         screen_height = self.root.winfo_screenheight()
         window_height = screen_height - (self.config.WINDOW_GAP * 3)
@@ -155,7 +163,7 @@ class EventExplorer:
                     self.build_tree(value, iid)
         elif isinstance(data, list):
             for i, value in enumerate(data):
-                label = f"[{i}]: {type(value).__name__}"
+                label = self.format_tree_label(f"[{i}]", value)
                 iid = self.data_tree.insert(parent_iid, "end", text=label)
                 
                 if isinstance(value, (dict, list)):
@@ -164,7 +172,7 @@ class EventExplorer:
     def format_tree_label(self, key: str, value: Any) -> str:
         if isinstance(value, str):
             return f"{key}: {value}"
-        elif isinstance(value, (int, float, np.number)):
+        elif isinstance(value, (int, float, np.floating, np.integer)):
             return f"{key}: {value}"
         elif isinstance(value, (list, np.ndarray)):
             try:
@@ -298,6 +306,7 @@ class EventExplorer:
 
             # Save results
             self.data_manager.set_data(events_path, events, add_key=True)
+            self.refresh_tree()
             showinfo(title="Success", message="Events extracted.")
 
         except Exception as e:

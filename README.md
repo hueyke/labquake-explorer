@@ -1,6 +1,6 @@
-# Event Explorer
+# Labquake Explorer
 
-A GUI application for analyzing and visualizing event data.
+A GUI application for analyzing and visualizing labquake event data.
 
 ## Installation
 
@@ -12,12 +12,12 @@ pip install -e .
 
 Run using the installed entry point:
 ```bash
-event-explorer
+labquake-explorer
 ```
 
 Or run directly:
 ```bash
-python -m event_explorer.main
+python -m labquake_explorer.main
 ```
 
 ## Features

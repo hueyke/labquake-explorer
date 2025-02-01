@@ -1,1 +1,1 @@
-"""Test suite for Event Explorer"""
+"""Test suite for Labquake Explorer"""

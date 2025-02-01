@@ -1,4 +1,4 @@
-"""Event processing for Event Explorer"""
+"""Event processing for Labquake Explorer"""
 import h5py
 import numpy as np
 import utils.tpc5 as tpc5

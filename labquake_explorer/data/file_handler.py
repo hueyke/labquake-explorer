@@ -1,4 +1,4 @@
-"""File handling operations for Event Explorer"""
+"""File handling operations for Labquake Explorer"""
 import h5py
 import numpy as np
 from pathlib import Path

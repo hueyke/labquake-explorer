@@ -1,23 +1,22 @@
-"""Main UI class for Event Explorer"""
+"""Main UI class for Labquake Explorer"""
 import sys
 import tkinter as tk
 import numpy as np
 import os
 from tkinter import ttk, filedialog, simpledialog, messagebox
-from tkinter.messagebox import askokcancel, showinfo, WARNING
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from event_explorer.data.data_manager import DataManager
-from event_explorer.utils.config import EventExplorerConfig
-from event_explorer.ui.views import (
+from labquake_explorer.data.data_manager import DataManager
+from labquake_explorer.utils.config import LabquakeExplorerConfig
+from labquake_explorer.ui.views import (
     SimplePlotView, PointsSelectorView, IndexPickerView,
     SlopeAnalyzerView, DynamicStrainArrivalPickerView, CZMFitterView
 )
 
-class EventExplorer:
+class LabquakeExplorer:
     def __init__(self, root: tk.Tk):
-        self.config = EventExplorerConfig()
+        self.config = LabquakeExplorerConfig()
         self.root = root
         self.root.title(self.config.WINDOW_TITLE)
         
@@ -30,13 +29,12 @@ class EventExplorer:
         self.create_widgets()
         self.setup_bindings()
 
-
-        # debug
-        file_path = Path("/Users/hueyke/sources/PSU-Dynamic-Strain/Data/p5993e.npz")
-        self.data_manager.load_file(file_path)
-        self.save_button.configure(state="normal")
-        self.refresh_tree()
-        print(f"File loaded: {file_path}")
+        # # debug
+        # file_path = Path("/Users/hueyke/sources/PSU-Dynamic-Strain/Data/p5993ec.npz")
+        # self.data_manager.load_file(file_path)
+        # self.save_button.configure(state="normal")
+        # self.refresh_tree()
+        # print(f"File loaded: {file_path}")
 
     def setup_window(self) -> None:
         screen_height = self.root.winfo_screenheight()
@@ -71,6 +69,11 @@ class EventExplorer:
 
         self.event_indices_menu = tk.Menu(self.root, tearoff=0)
         self.event_indices_menu.add_command(label="Extract Events", command=self.extract_events)
+
+        self.event_array_menu = tk.Menu(self.root, tearoff=0)
+        self.event_array_menu.add_command(label="Pick Indices", command=self.pick_indices)
+        self.event_array_menu.add_command(label="Extract Slopes", command=self.extract_slope)
+        self.event_array_menu.add_command(label="Min/Max", command=self.min_max)
 
         self.string_menu = tk.Menu(self.root, tearoff=0)
         self.string_menu.add_command(label="Edit String", command=self.edit_string)
@@ -170,21 +173,30 @@ class EventExplorer:
                     self.build_tree(value, iid)
 
     def format_tree_label(self, key: str, value: Any) -> str:
+        """Format label for tree view items based on data type and content.
+
+        Args:
+            key: The key or index name
+            value: The value to format
+
+        Returns:
+            Formatted string label
+        """
         if isinstance(value, str):
             return f"{key}: {value}"
         elif isinstance(value, (int, float, np.floating, np.integer)):
             return f"{key}: {value}"
-        elif isinstance(value, (list, np.ndarray)):
-            try:
-                if len(value) == 1:
-                    return f"{key}: {value[0]}"
-                else:
-                    return f"{key}: array[{len(value)}]"
-            except:
-                if value.size == 1:
-                    return f"{key}: {value.flatten()[0]}"
-                else:
-                    return f"{key}: array[{value.size}]"
+        elif isinstance(value, np.ndarray):
+            if value.size == 1:
+                return f"{key}: {value.flatten()[0]}"
+            else:
+                shape_str = str(list(value.shape)).replace(" ", "")  # Remove spaces
+                return f"{key}: array{shape_str}"
+        elif isinstance(value, list):
+            if len(value) == 1 and not key == 'events':
+                return f"{key}: {value[0]}"
+            else:
+                return f"{key}: array[{len(value)}]"
         return f"{key}: {type(value).__name__}"
     
     def get_full_path(self, item=None):
@@ -220,6 +232,17 @@ class EventExplorer:
                                  xlabel='index', ylabel=item, title=path)
         self.child_windows.append(view)
 
+    def min_max(self):
+        path, item = self.get_full_path()
+        y = self.data_manager.get_data(path)
+        x = np.arange(len(y))
+        idx_min = np.argmin(y)
+        idx_max = np.argmax(y)
+        picked_idx = [idx_max, idx_min]
+        view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=False,
+                                 xlabel='index', ylabel=item, title=path)
+        self.child_windows.append(view)
+
 
     def pick_strain_array_arrivals(self):
         path, item = self.get_full_path()
@@ -240,14 +263,12 @@ class EventExplorer:
 
     def pick_indices(self):
         item = self.data_tree.selection()[0]
-        item_name = self.data_tree.item(item)['text'].split(':')[0]
-        view = IndexPickerView(self, item_y=item_name)
+        view = IndexPickerView(self, item_y=self.get_full_path(item)[0])
         self.child_windows.append(view)
 
     def extract_slope(self):
         item = self.data_tree.selection()[0]
-        item_name = self.data_tree.item(item)['text'].split(':')[0]
-        view = SlopeAnalyzerView(self, item_y=item_name)
+        view = SlopeAnalyzerView(self, item_y=self.get_full_path(item)[0])
         self.child_windows.append(view)
 
     def pick_run(self):
@@ -273,10 +294,10 @@ class EventExplorer:
 
         # Check for existing events
         if self.has_child_named(parent, "events"):
-            ans = askokcancel(
+            ans = messagebox.askokcancel(
                 title="Confirmation", 
                 message=f'This procedure will replace all data in "{events_path}".', 
-                icon=WARNING
+                icon=messagebox.WARNING
             )
             if not ans:
                 return
@@ -307,7 +328,8 @@ class EventExplorer:
             # Save results
             self.data_manager.set_data(events_path, events, add_key=True)
             self.refresh_tree()
-            showinfo(title="Success", message="Events extracted.")
+
+            self.root.after(100, lambda: messagebox.showinfo(title="Success", message="Events extracted."))
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to extract events: {str(e)}")
@@ -405,21 +427,71 @@ class EventExplorer:
         children = self.data_tree.get_children(item_id)
         return any(name == self.data_tree.item(child_id, "text").split(":")[0] for child_id in children)
 
-    def on_delete(self, event):
-        item_id = self.data_tree.selection()[0]
-        item_path = self.get_full_path(item_id)[0]
-        ans = askokcancel(title="Confirmation", message=f"This procedure will delete \"{item_path}\".", icon=WARNING)
-        if not ans:
-            return
-        parent_id = self.data_tree.parent(item_id)
-        parent_path = self.get_full_path(parent_id)[0]
-        parent = self.get_data(self.data, parent_path)
-        item_name = self.data_tree.item(item_id, "text").split(":")[0]
-        if type(parent) is dict:
-            parent.pop(item_name)
-        elif type(parent) is list:
-            parent.pop(int(item_name.split(']')[0].split('[')[1]))
-        self.refresh_tree()
+    def on_delete(self, event) -> None:
+        """Handle deletion of items from the tree view"""
+        try:
+            item_id = self.data_tree.selection()[0]
+
+            # Get the item above the selected item
+            prev_item = self.data_tree.prev(item_id)
+            if not prev_item:
+                # If no previous item, get the parent
+                prev_item = self.data_tree.parent(item_id)
+
+            # Store the path of the item to focus
+            focus_path = self.get_full_path(prev_item)[0] if prev_item else ""
+
+            item_path = self.get_full_path(item_id)[0]
+
+            # Confirm deletion with user
+            ans = messagebox.askokcancel(
+                title="Confirmation", 
+                message=f'This procedure will delete "{item_path}".', 
+                icon=messagebox.WARNING
+            )
+            if not ans:
+                return
+
+            # Attempt deletion
+            try:
+                self.data_manager.delete_data(item_path)
+                self.refresh_tree()
+
+                # After refresh, find and focus the previous item
+                if focus_path:
+                    for item in self.data_tree.get_children(""):
+                        if self._find_and_focus_item(item, focus_path):
+                            break
+
+            except (ValueError, KeyError, IndexError) as e:
+                messagebox.showerror("Error", f"Failed to delete item: {str(e)}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+
+    def _find_and_focus_item(self, item: str, target_path: str) -> bool:
+        """Helper method to find and focus an item by its path
+
+        Args:
+            item: The current tree item ID to check
+            target_path: The path to find
+
+        Returns:
+            bool: True if item was found and focused
+        """
+        current_path = self.get_full_path(item)[0]
+        if current_path == target_path:
+            self.data_tree.focus(item)
+            self.data_tree.selection_set(item)
+            self.data_tree.see(item)
+            return True
+
+        # Recursively check children
+        for child in self.data_tree.get_children(item):
+            if self._find_and_focus_item(child, target_path):
+                return True
+
+        return False
 
     def on_closing(self) -> None:
         try:

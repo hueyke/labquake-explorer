@@ -2,12 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import numpy as np
 from scipy import signal
 from matplotlib.widgets import Cursor
-from src import cohesive_crack as CohesiveCrack
-from src import data_processor as DataProcessor
+from labquake_explorer.utils.cohesive_crack import CohesiveCrack
+from labquake_explorer.data.data_processor import DataProcessor
+
+
 
 class CZMFitterView(tk.Toplevel):
     def __init__(self, parent, run_idx, event_idx):
@@ -20,6 +21,7 @@ class CZMFitterView(tk.Toplevel):
         self.event_idx = event_idx
         self.event = None
         self.filtering = False
+        self.data_manager = self.parent.data_manager
         
         # Material properties
         self.E = 51e9      # Young's modulus (Pa)
@@ -102,7 +104,7 @@ class CZMFitterView(tk.Toplevel):
         self.filter_button.pack(side=tk.LEFT, padx=5)
 
     def create_matplotlib_figure(self):
-        self.fig = Figure(figsize=(10, 6))
+        self.fig = plt.figure(figsize=(10, 6))
         self.gs = self.fig.add_gridspec(2, hspace=0.3)
         self.axs = self.gs.subplots(sharex=True)
         for ax in self.axs:
@@ -172,7 +174,7 @@ class CZMFitterView(tk.Toplevel):
         self.vlines_twin = []
         
         self.event_idx = event_idx
-        self.event = self.parent.data["runs"][self.run_idx]["events"][self.event_idx]
+        self.event = self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]")
 
         # Update view limits and parameters if saved data exists
         if 'czm_parms' in self.event:
@@ -195,7 +197,7 @@ class CZMFitterView(tk.Toplevel):
             self.x_min = -0.01
             self.x_max = 0.01
             try:
-                self.Cf.set(np.abs(self.parent.data["runs"][self.run_idx]["events"][self.event_idx]['rupture_speed']))
+                self.Cf.set(np.abs(self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/rupture_speed")))
             except:
                 self.Cf.set(10)
             self.y.set(8e-3)
@@ -205,7 +207,7 @@ class CZMFitterView(tk.Toplevel):
         self.axs[0].set_xlim(self.x_min, self.x_max)
 
     def init_event_combobox(self):
-        n_events = len(self.parent.data["runs"][self.run_idx]["events"])
+        n_events = len(self.data_manager.get_data(f"runs/[{self.run_idx}]/events"))
         options = [f"{i}" for i in range(n_events)]
         self.event_combobox.config(values=options, state="readonly")
         self.event_combobox.current(self.event_idx)
@@ -247,8 +249,8 @@ class CZMFitterView(tk.Toplevel):
             self.event['czm_parms'] = params
             
             # Also update the parent data structure to ensure persistence
-            self.parent.data["runs"][self.run_idx]["events"][self.event_idx]['czm_parms'] = params
-            
+            self.data_manager.set_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/czm_parms", params, True)
+            self.parent.refresh_tree()
             print(f"Saved parameters for event {self.event_idx}: {params}")
 
     def update_plot(self, event=None):
@@ -314,7 +316,8 @@ class CZMFitterView(tk.Toplevel):
         self.axs[1].set_xlabel('Time (s)')
         self.axs[0].set_ylabel('Sxy (MPa)')
         self.axs[1].set_ylabel('Syy (MPa)')
-        self.fig.suptitle(f"{self.parent.data['name']} run{self.run_idx:02d} event{self.event_idx}")
+        
+        self.fig.suptitle(f"{self.data_manager.get_data('name')} run{self.run_idx:02d} event{self.event_idx}")
 
         # Clear existing line lists
         self.vlines = []

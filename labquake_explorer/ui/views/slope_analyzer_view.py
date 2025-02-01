@@ -3,25 +3,34 @@ from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.figure import Figure
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from typing import Optional
+import os
+
 
 class SlopeAnalyzerView(tk.Toplevel):
     def __init__(self, parent, item_y=None, item_x=None):
         self.root = parent.root
         super().__init__(self.root)
-        self.title("Slope Extracting View")
+        self.title("Slope Analyzer")
         self.parent = parent
+        self.data_manager = parent.data_manager
+        
+        # Store the initial full path
+        self.base_path = None
+        if item_y:
+            self.base_path = os.path.dirname(item_y)
+            self.item_y = os.path.basename(item_y)
+        else:
+            self.item_y = None
+        self.item_x = item_x
 
         # dummy resizing column is 3
         self.grid_columnconfigure(3, weight=1)
         # resizing row is set to only the canvas
         self.grid_rowconfigure(2, weight=1)
-
-        # Tree
-        self.data_tree = ttk.Treeview(self)
-        self.data_tree.grid(row=0, column=0, rowspan=4, padx=2, pady=0, sticky="nsw")
-        self.data_tree.heading("#0", text="Extracted Slopes", anchor="w")
 
         # Row 0
         tk.Label(self, text="X Data").grid(row=0, column=1, padx=5, pady=0)
@@ -37,8 +46,9 @@ class SlopeAnalyzerView(tk.Toplevel):
         self.slope_textbox.grid(row=1, column=4, padx=5, pady=0)
 
         # Row 2 - Matplotlib Figure and Tkinter Canvas
-        self.fig, self.ax = plt.subplots()
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.figure = Figure()
+        self.ax = self.ax = self.figure.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=2, column=1, columnspan=4, padx=5, pady=5, sticky="nsew")
 
@@ -50,13 +60,12 @@ class SlopeAnalyzerView(tk.Toplevel):
         toolbar.update()
 
         # Data points
-        self.item_y = item_y
-        self.item_x = item_x
         self.index_y = None
         self.index_x = None
         self.data_x = []
         self.data_y = []
         self.markers = []
+        self.slope_line = None
         self.offset = [0, 0]
         self.mouse_button_pressed = None
         self.current_artist = None
@@ -69,12 +78,12 @@ class SlopeAnalyzerView(tk.Toplevel):
         self.plot_picked_points()
 
         # Event bindings
-        self.fig.canvas.mpl_connect('pick_event', self.on_pick)
-        self.fig.canvas.mpl_connect('motion_notify_event', self.on_motion)
-        self.fig.canvas.mpl_connect('button_press_event', self.on_press)
-        self.fig.canvas.mpl_connect('button_release_event', self.on_release)
-        self.fig.canvas.mpl_connect('resize_event', self.on_resize)
-        self.fig.canvas.mpl_connect('scroll_event', self.on_resize)
+        self.figure.canvas.mpl_connect('pick_event', self.on_pick)
+        self.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
+        self.figure.canvas.mpl_connect('button_press_event', self.on_press)
+        self.figure.canvas.mpl_connect('button_release_event', self.on_release)
+        self.figure.canvas.mpl_connect('resize_event', self.on_resize)
+        self.figure.canvas.mpl_connect('scroll_event', self.on_resize)
         self.data_y_combo.bind("<<ComboboxSelected>>", self.data_y_selected)
         self.data_x_combo.bind("<<ComboboxSelected>>", self.data_x_selected)
 
@@ -94,14 +103,18 @@ class SlopeAnalyzerView(tk.Toplevel):
         
         if self.item_x is None:
             self.ax.clear()
-            self.data_y = self.parent.get_data(self.parent.data, self.item_y)
+            full_path = os.path.join(self.base_path, self.item_y) if self.base_path else self.item_y
+            self.data_y = self.data_manager.get_data(full_path)
+            self.data_x = np.array([])  # Empty array for when no x data is selected
             self.ax.plot(self.data_y, zorder=-100)
             self.ax.set_ylabel(self.item_y)
             self.ax.set_xlabel("Index")
         else:
             self.ax.clear()
-            self.data_x = self.parent.get_data(self.parent.data, self.item_x)
-            self.data_y = self.parent.get_data(self.parent.data, self.item_y)
+            x_path = os.path.join(self.base_path, self.item_x) if self.base_path else self.item_x
+            y_path = os.path.join(self.base_path, self.item_y) if self.base_path else self.item_y
+            self.data_x = self.data_manager.get_data(x_path)
+            self.data_y = self.data_manager.get_data(y_path)
             self.ax.plot(self.data_x, self.data_y, zorder=-100)
             self.ax.set_ylabel(self.item_y)
             self.ax.set_xlabel(self.item_x)
@@ -109,16 +122,31 @@ class SlopeAnalyzerView(tk.Toplevel):
 
     def plot_picked_points(self):
         width, height = self.get_circle_dims()
+        
+        # Remove old markers properly
         for marker in self.markers:
-            marker.remove()
+            if marker in self.ax.patches:
+                marker.remove()
         self.markers = []
+
+        if self.slope_line:
+            self.slope_line.remove() if self.slope_line in self.ax.lines else None
+            self.ax.lines.remove(self.slope_line) if self.slope_line in self.ax.lines else None
+            self.slope_line = None
+        
+        # Create new markers
         for i in range(len(self.picked_idx)):
             idx = self.picked_idx[i]
-            x = self.data_x[idx] if len(self.data_x) >= idx else idx
+            x = self.data_x[idx] if len(self.data_x) > 0 else idx
             y = self.data_y[idx]
             marker = patches.Ellipse((x, y), width=width, height=height, color='red', fill=False, lw=2, picker=8, label=str(i))
             self.ax.add_patch(marker)
             self.markers.append(marker)
+
+
+        x = self.data_x[self.picked_idx] if len(self.data_x) >= np.max(self.picked_idx) else self.picked_idx
+        self.slope_line, = self.ax.plot(x, self.data_y[self.picked_idx], '--', color='gray', zorder=-50)
+
         self.canvas.draw()
         self.update_slope()
 
@@ -138,21 +166,39 @@ class SlopeAnalyzerView(tk.Toplevel):
             return
         if self.current_artist is None:
             return
+        if event.xdata is None or event.ydata is None:
+            return  # Mouse is outside plot area
+
         if isinstance(self.current_artist, patches.Ellipse):
-                try:
-                    dx, dy = self.offset
-                    cx, cy = event.xdata + dx, event.ydata + dy
-                    xl = self.ax.get_xlim()
-                    yl = self.ax.get_ylim()
-                    yw = yl[-1] - yl[0]
-                    xw = xl[-1] - xl[0]
+            try:
+                dx, dy = self.offset
+                cx, cy = event.xdata + dx, event.ydata + dy
+                xl = self.ax.get_xlim()
+                yl = self.ax.get_ylim()
+                yw = yl[-1] - yl[0]
+                xw = xl[-1] - xl[0]
+
+                # Handle case where no x data is selected
+                if len(self.data_x) == 0:
+                    # Use index as x coordinate
+                    x_values = np.arange(len(self.data_y))
+                    idx = np.argmin(((x_values - cx) / xw) ** 2 + ((self.data_y - cy) / yw) ** 2)
+                    x_coord = idx
+                else:
+                    # Use actual x data
                     idx = np.argmin(((self.data_x - cx) / xw) ** 2 + ((self.data_y - cy) / yw) ** 2)
-                    self.current_artist.set_center((self.data_x[idx], self.data_y[idx]))
-                    self.canvas.draw()
-                    self.picked_idx[int(self.current_artist.get_label())] = idx
-                    self.update_slope()
-                except:
-                    pass
+                    x_coord = self.data_x[idx]
+
+                self.current_artist.set_center((x_coord, self.data_y[idx]))
+
+                x = self.data_x[self.picked_idx] if len(self.data_x) >= np.max(self.picked_idx) else self.picked_idx
+                self.slope_line.set_data(x, self.data_y[self.picked_idx])
+
+                self.canvas.draw()
+                self.picked_idx[int(self.current_artist.get_label())] = idx
+                self.update_slope()
+            except Exception as e:
+                print(f"Error in on_motion: {e}")  # Optional debugging
 
     def on_press(self, event):
         self.currently_dragging = True
@@ -171,7 +217,7 @@ class SlopeAnalyzerView(tk.Toplevel):
         xl = self.ax.get_xlim()
         yl = self.ax.get_ylim()
         ratio = (yl[-1] - yl[0]) / (xl[-1] - xl[0])
-        fig_size = self.fig.get_size_inches()
+        fig_size = self.figure.get_size_inches()
         ratio *= fig_size[0] / fig_size[1]
         width = (xl[-1] - xl[0]) / fig_size[0] * 0.15
         return width, width * ratio
@@ -185,23 +231,72 @@ class SlopeAnalyzerView(tk.Toplevel):
             self.canvas.draw()
 
     def init_comboboxes(self):
-        items = list()
+        """Initialize comboboxes with items that share the same parent"""
+        items = []
         i = 0
-        for item in self.parent.data_tree.get_children(""):
-            item_label = self.parent.data_tree.item(item)['text'].split(':')[0]
-            items.append(item_label)
-            if item_label == self.item_y:
-                self.index_y = i
-            elif item_label == self.item_x:
-                self.index_x = i
-            i += 1
+        
+        # Get the parent of the selected item
+        selected_item = None
+        if self.item_y:
+            # Find the tree item by searching for the full path
+            full_path = os.path.join(self.base_path, self.item_y) if self.base_path else self.item_y
+            for item in self.parent.data_tree.get_children(""):
+                if self._find_item_by_path(item, full_path):
+                    selected_item = self._find_item_by_path(item, full_path)
+                    break
+        
+        if selected_item:
+            parent_id = self.parent.data_tree.parent(selected_item)
+            
+            # Get all siblings (items with same parent)
+            if parent_id:
+                siblings = self.parent.data_tree.get_children(parent_id)
+                # Store base path for data access
+                self.base_path = self.parent.get_full_path(parent_id)[0]
+            else:
+                siblings = self.parent.data_tree.get_children("")
+                self.base_path = ""
+                
+            # Add each sibling that represents an array
+            for item in siblings:
+                item_text = self.parent.data_tree.item(item)['text']
+                if ':' in item_text and "array" in item_text.split(':')[1]:
+                    item_label = item_text.split(':')[0].strip()
+                    items.append(item_label)
+                    if item_label == self.item_y:
+                        self.index_y = i
+                    elif item_label == self.item_x:
+                        self.index_x = i
+                    i += 1
         
         self.data_x_combo.config(values=items)
         self.data_y_combo.config(values=items)
-        if self.index_y:
+        if self.index_y is not None:
             self.data_y_combo.current(self.index_y)
-        if self.index_x:
+        if self.index_x is not None:
             self.data_x_combo.current(self.index_x)
+
+    def _find_item_by_path(self, current_item: str, target_path: str) -> Optional[str]:
+        """Recursively find a tree item by its full path
+
+        Args:
+            current_item: Current tree item ID being checked
+            target_path: The full path to find
+
+        Returns:
+            The tree item ID if found, None otherwise
+        """
+        current_path = self.parent.get_full_path(current_item)[0]
+        if current_path == target_path:
+            return current_item
+
+        # Search children
+        for child in self.parent.data_tree.get_children(current_item):
+            result = self._find_item_by_path(child, target_path)
+            if result:
+                return result
+
+        return None
 
     
     def update_slope(self):

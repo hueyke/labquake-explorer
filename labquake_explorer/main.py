@@ -1,12 +1,12 @@
-"""Main entry point for Event Explorer application"""
+"""Main entry point for Labquake Explorer application"""
 import sys
 import tkinter as tk
-from event_explorer.ui.event_explorer import EventExplorer
+from labquake_explorer.ui.labquake_explorer import LabquakeExplorer
 
 def main():
     try:
         root = tk.Tk()
-        app = EventExplorer(root)
+        app = LabquakeExplorer(root)
         root.mainloop()
     except Exception as e:
         print(f"Fatal error: {e}")

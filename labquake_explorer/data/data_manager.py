@@ -1,9 +1,9 @@
-"""Data management and processing for Event Explorer"""
+"""Data management and processing for Labquake Explorer"""
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import numpy as np
 import h5py
-from event_explorer.data.event_processor import EventProcessor
+from labquake_explorer.data.event_processor import EventProcessor
 
 
 class DataManager:
@@ -46,37 +46,29 @@ class DataManager:
                 except Exception as exc:
                     print(f"Dataset loading error: {str(exc)}")
                     return None
-    
-            # Rest of the code remains unchanged
+                
             def load_group(group):
                 result = {}
-                for key in group.keys():
+                
+                keys = list(group.keys())
+                if all(k.isdigit() for k in keys):  # Check if all keys are integers
+                    try:
+                        num_keys = max(int(k) for k in keys) + 1
+                        return np.array([load_group(group[str(i)]) for i in range(num_keys)])
+                    except ValueError:
+                        pass  # Fall back to dictionary if an error occurs
+                    
+                for key in keys:
                     try:
                         item = group[key]
                         if isinstance(item, h5py.Group):
-                            if key == 'runs':
-                                try:
-                                    num_runs = max(int(k) for k in item.keys()) + 1
-                                    result[key] = [load_group(item[str(i)]) for i in range(num_runs)]
-                                except ValueError:
-                                    result[key] = load_group(item)
-                            elif key == 'events':
-                                try:
-                                    num_events = max(int(k) for k in item.keys()) + 1
-                                    result[key] = [load_group(item[str(i)]) for i in range(num_events)]
-                                except ValueError:
-                                    result[key] = load_group(item)
-                            elif key in ['strain', 'original']:
-                                result[key] = load_group(item)
-                            else:
-                                result[key] = load_group(item)
+                            result[key] = load_group(item)
                         else:
                             result[key] = load_dataset(item)
                     except Exception as exc:
                         print(f"Error loading {key}: {str(exc)}")
+                
                 return result
-    
-            self.data = load_group(h5data)
 
     def save_file(self, path: Path) -> None:
         if not self.data:
@@ -91,11 +83,10 @@ class DataManager:
                         subgroup = group.create_group(key)
                         for k, v in value.items():
                             save_item(subgroup, k, v)
-                    elif isinstance(value, (list, np.ndarray)):
-                        if len(value) > 0 and isinstance(value[0], (dict, list, np.ndarray)):
-                            subgroup = group.create_group(key)
-                            for i, item in enumerate(value):
-                                save_item(subgroup, str(i), item)
+                    elif isinstance(value, np.ndarray):
+                        # Ensure 2D arrays are stored as matrices
+                        if value.ndim == 2:  # This ensures any 2D array (e.g., (16, n)) is stored correctly
+                            group.create_dataset(key, data=value, compression="gzip")
                         else:
                             arr = np.array(value)
                             if arr.dtype == object:
@@ -107,9 +98,19 @@ class DataManager:
                                     arr = arr.astype(np.int8)
                                 else:
                                     arr = np.array([str(x).encode() for x in arr.flat]).reshape(arr.shape)
-                            elif arr.dtype.kind == 'U':
+                            elif arr.dtype.kind == 'U':  # Convert Unicode strings to byte strings
                                 arr = np.array([x.encode() for x in arr.flat]).reshape(arr.shape)
+                
                             group.create_dataset(key, data=arr, compression="gzip")
+                    elif isinstance(value, (list, tuple)):
+                        # Convert list/tuple to NumPy array and save if it's 2D
+                        arr = np.array(value)
+                        if arr.ndim == 2:  # Save lists that are actually 2D arrays
+                            group.create_dataset(key, data=arr, compression="gzip")
+                        else:
+                            subgroup = group.create_group(key)
+                            for i, item in enumerate(value):
+                                save_item(subgroup, str(i), item)
                     elif isinstance(value, str):
                         group.create_dataset(key, data=value.encode())
                     elif isinstance(value, (int, float, bool, np.number)):
@@ -188,3 +189,60 @@ class DataManager:
         if last_key[0] == '[' and last_key[-1] == ']':
             last_key = int(last_key[1:-1])
         current[last_key] = value
+
+    def delete_data(self, path: str) -> None:
+        """Delete data at specified path
+        
+        Args:
+            path: Path to the data to delete (e.g. 'runs/[0]/events')
+            
+        Raises:
+            ValueError: If no data is loaded or path is invalid
+            KeyError: If path does not exist
+        """
+        if not self.data:
+            raise ValueError("No data loaded")
+            
+        # Handle root deletion
+        if path == "":
+            self.data = None
+            return
+            
+        parts = path.split('/')
+        current = self.data
+        
+        # Navigate to parent of item to delete
+        for part in parts[:-1]:
+            if part[0] == '[' and part[-1] == ']':
+                # Handle array index
+                idx = int(part[1:-1])
+                if not isinstance(current, (list, tuple)):
+                    raise ValueError(f"Cannot index non-sequence with {part}")
+                if idx >= len(current):
+                    raise IndexError(f"Index {idx} out of range for sequence of length {len(current)}")
+                current = current[idx]
+            else:
+                # Handle dictionary key
+                if not isinstance(current, dict):
+                    raise ValueError(f"Cannot get key '{part}' from non-dictionary")
+                if part not in current:
+                    raise KeyError(f"Key '{part}' not found")
+                current = current[part]
+        
+        # Delete the item
+        last_part = parts[-1]
+        if last_part[0] == '[' and last_part[-1] == ']':
+            # Handle array index deletion
+            idx = int(last_part[1:-1])
+            if not isinstance(current, (list, tuple)):
+                raise ValueError(f"Cannot delete index from non-sequence")
+            if idx >= len(current):
+                raise IndexError(f"Index {idx} out of range")
+            current.pop(idx)
+        else:
+            # Handle dictionary key deletion
+            if not isinstance(current, dict):
+                raise ValueError(f"Cannot delete key from non-dictionary")
+            if last_part not in current:
+                raise KeyError(f"Key '{last_part}' not found")
+            current.pop(last_part)

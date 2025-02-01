@@ -1,5 +1,12 @@
 numpy>=1.20.0
 h5py>=3.0.0
 matplotlib>=3.4.0
-scipy>-1.6.0
-# Add other dependencies as needed
+scipy>=1.6.0
+pandas>=2.0.0
+
+# GUI dependencies
+# Tkinter is part of the Python standard library but may not be installed by default.
+# On macOS (if using Homebrew's Python), install it with:
+# brew install tcl-tk
+# Ensure the correct paths are set before reinstalling Python:
+# brew reinstall python

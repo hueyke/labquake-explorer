@@ -3,7 +3,7 @@ from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import signal
+from scipy import signal, optimize
 from matplotlib.widgets import Cursor
 from labquake_explorer.utils.cohesive_crack import CohesiveCrack
 from labquake_explorer.data.data_processor import DataProcessor
@@ -156,6 +156,14 @@ class CZMFitterView(tk.Toplevel):
         )
         update_button.pack(side=tk.LEFT, padx=5)
         
+        # Add Fit button
+        fit_button = ttk.Button(
+            button_frame,
+            text="Fit",
+            command=self.fit_parameters
+        )
+        fit_button.pack(side=tk.LEFT, padx=5)
+        
         # Add Save button
         save_button = ttk.Button(
             button_frame,
@@ -194,8 +202,8 @@ class CZMFitterView(tk.Toplevel):
                     self.vlines.append(vline)
                     self.vlines_twin.append(vline_twin)
         else:
-            self.x_min = -0.01
-            self.x_max = 0.01
+            self.x_min = -0.1
+            self.x_max = 0.1
             try:
                 self.Cf.set(np.abs(self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/rupture_speed")))
             except:
@@ -345,30 +353,39 @@ class CZMFitterView(tk.Toplevel):
     def is_navigation_active(self):
         """Check if pan or zoom tools are currently active."""
         return self.toolbar.mode in ['pan/zoom', 'zoom rect']
-
+    
     def on_mouse_press(self, event):
-        if event.inaxes and not self.is_navigation_active():
-            # Check each line to see if click is near it
-            for i, vline in enumerate(self.vlines):
-                line_x = vline.get_xdata()[0]
-                xlim_temp = self.axs[0].get_xlim()
-                if abs(event.xdata - line_x) < 0.01 * (xlim_temp[1]-xlim_temp[0]):  # Reduced sensitivity for multiple lines
-                    self.drag_active = True
-                    self.active_line_idx = i
-                    break
+        if self.is_navigation_active():
+            return  # Let matplotlib handle navigation events
+
+        if event.button == 1:  # Left-click for line dragging
+            if event.inaxes:
+                # Check each line to see if click is near it
+                for i, vline in enumerate(self.vlines):
+                    line_x = vline.get_xdata()[0]
+                    xlim_temp = self.axs[0].get_xlim()
+                    if abs(event.xdata - line_x) < 0.01 * (xlim_temp[1]-xlim_temp[0]):
+                        self.drag_active = True
+                        self.active_line_idx = i
+                        break
 
     def on_mouse_release(self, event):
         self.drag_active = False
         self.active_line_idx = None
 
     def on_mouse_move(self, event):
-        if self.drag_active and event.inaxes and self.active_line_idx is not None and not self.is_navigation_active():
+        if self.is_navigation_active():
+            return  # Let matplotlib handle navigation events
+
+        if self.drag_active and event.inaxes and self.active_line_idx is not None:
             # Update active line pair
             new_x = event.xdata
             self.vlines[self.active_line_idx].set_xdata([new_x, new_x])
             self.vlines_twin[self.active_line_idx].set_xdata([new_x, new_x])
             self.canvas.draw_idle()
             self.update_plot()
+
+            
             
     def validate_filter_window(self, value):
         """Validate that the filter window value is an odd integer."""
@@ -379,6 +396,71 @@ class CZMFitterView(tk.Toplevel):
             return val >= 3 and val <= 201 and val % 2 == 1
         except ValueError:
             return False
+    
+    def fit_parameters(self):
+        """Fit Gamma and Xc parameters to the data between vertical lines."""
+        if len(self.vlines) < 2:
+            print("Need two vertical lines to define fitting region")
+            return
+            
+        # Get x positions of vertical lines
+        t1, t2 = sorted([line.get_xdata()[0] for line in self.vlines[:2]])
+        
+        # Get experimental data
+        t = self.event["strain"]["original"]["time"] - self.event["event_time"]
+        sxy = DataProcessor.shear_strain_to_stress(
+            self.E, self.nu, 
+            DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][6])
+        ) * 1e-6  # Convert to MPa
+        
+        if self.filtering:
+            window_length = self.filter_window.get()
+            sxy = signal.savgol_filter(sxy, window_length, 2)
+        
+        # Get indices for fitting region
+        mask = (t >= t1) & (t <= t2)
+        t_fit = t[mask]
+        sxy_fit = sxy[mask]
+        
+        # Zero the data at the first point
+        idx_zero = np.argmin(np.abs(t - t1))
+        sxy_fit = sxy_fit - sxy[idx_zero]
+        
+        # Define objective function for optimization
+        def objective(params):
+            Gc, Xc = params
+            x = t_fit * self.Cf.get()
+            x_zeroed = x - t2 * self.Cf.get()
+            
+            delta_sigma_xy, _ = CohesiveCrack.delta_sigmas(
+                x_zeroed, self.y.get(), Xc, self.Cf.get(), 
+                self.C_s, self.C_d, self.nu, Gc, self.E
+            )
+            
+            return np.sum((sxy_fit + delta_sigma_xy * 1e-6) ** 2)
+        
+        # Initial guess
+        initial_guess = [self.Gc.get(), self.Xc.get()]
+        
+        # Bounds for parameters (Gc > 0, Xc > 0)
+        bounds = ((1e-6, None), (1e-6, None))
+        
+        # Perform optimization
+        result = optimize.minimize(
+            objective, 
+            initial_guess,
+            bounds=bounds,
+            method='L-BFGS-B'
+        )
+        
+        if result.success:
+            # Update parameters with fitted values
+            self.Gc.set(result.x[0])
+            self.Xc.set(result.x[1])
+            self.update_plot()
+            print(f"Fitted parameters: Gc={result.x[0]:.2e}, Xc={result.x[1]:.2f}")
+        else:
+            print("Fitting failed:", result.message)
 
 if __name__ == "__main__":
     pass

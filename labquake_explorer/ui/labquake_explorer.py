@@ -157,18 +157,23 @@ class LabquakeExplorer:
 
     def build_tree(self, data: Dict[str, Any], parent_iid: str) -> None:
         """Recursively build tree view from data"""
+        parent_label = ""
+        if parent_iid:
+            parent_item = self.data_tree.item(parent_iid)
+            parent_label = parent_item["text"].split(":")[0].strip()
         if isinstance(data, dict):
             for key, value in data.items():
                 label = self.format_tree_label(key, value)
                 iid = self.data_tree.insert(parent_iid, "end", text=label)
-                
                 if isinstance(value, (dict, list)):
                     self.build_tree(value, iid)
         elif isinstance(data, list):
             for i, value in enumerate(data):
-                label = self.format_tree_label(f"[{i}]", value)
+                try:
+                    label = f"[{i}] {value['name']}"
+                except:
+                    label = self.format_tree_label(f"[{i}]", value)
                 iid = self.data_tree.insert(parent_iid, "end", text=label)
-                
                 if isinstance(value, (dict, list)):
                     self.build_tree(value, iid)
 

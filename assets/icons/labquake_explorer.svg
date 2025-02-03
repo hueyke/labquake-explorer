@@ -23,30 +23,35 @@
     V 232
     C 0 112 112 0 232 0
     Z" fill="url(#bgGradient)"/>
-  <!-- Main seismic wave with Apple's smooth curves -->
-  <path d="M142 562 
-           C192 562, 232 562, 256 562
-           C276 562, 286 367, 306 192
-           C372 -33, 522 1150, 768 732
-           C768 732, 812 732, 902 732" 
-        stroke="white" 
-        stroke-width="64" 
-        fill="none" 
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        filter="url(#softGlow)"
-        opacity="0.98"/>
-  <!-- Grid lines - adjusted to align with wave -->
-  <g stroke="white" stroke-width="6" opacity="0.15">
-    <!-- Horizontal lines -->
-    <line x1="142" y1="222" x2="902" y2="222"/>
-    <line x1="142" y1="392" x2="902" y2="392"/>
-    <line x1="142" y1="562" x2="902" y2="562"/>
-    <line x1="142" y1="732" x2="902" y2="732"/>
+  
+  <!-- Group containing the scaled wave and grid -->
+  <g transform="translate(512, 512) scale(0.75) translate(-512, -512)">
+    <!-- Main seismic wave with Apple's smooth curves -->
+    <path d="M142 562 
+             C192 562, 232 562, 256 562
+             C276 562, 286 367, 306 192
+             C372 -33, 522 1150, 768 732
+             C768 732, 812 732, 902 732" 
+          stroke="white" 
+          stroke-width="64" 
+          fill="none" 
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          filter="url(#softGlow)"
+          opacity="0.98"/>
     
-    <!-- Vertical lines -->
-    <line x1="256" y1="142" x2="256" y2="902"/>
-    <line x1="512" y1="142" x2="512" y2="902"/>
-    <line x1="768" y1="142" x2="768" y2="902"/>
+    <!-- Grid lines - adjusted to align with wave -->
+    <g stroke="white" stroke-width="6" opacity="0.15">
+      <!-- Horizontal lines -->
+      <line x1="142" y1="222" x2="902" y2="222"/>
+      <line x1="142" y1="392" x2="902" y2="392"/>
+      <line x1="142" y1="562" x2="902" y2="562"/>
+      <line x1="142" y1="732" x2="902" y2="732"/>
+
+      <!-- Vertical lines -->
+      <line x1="256" y1="142" x2="256" y2="902"/>
+      <line x1="512" y1="142" x2="512" y2="902"/>
+      <line x1="768" y1="142" x2="768" y2="902"/>
+    </g>
   </g>
 </svg>

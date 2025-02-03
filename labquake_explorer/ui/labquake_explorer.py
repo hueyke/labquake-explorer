@@ -40,6 +40,23 @@ class LabquakeExplorer:
         screen_height = self.root.winfo_screenheight()
         window_height = screen_height - (self.config.WINDOW_GAP * 3)
         
+        # Set window icon with correct path
+        # Go up three levels from the current file to reach project root
+        project_root = Path(__file__).parent.parent.parent
+        icon_path = project_root / "assets" / "icons" / "labquake_explorer"
+        
+        try:
+            if sys.platform == "darwin":  # macOS
+                img = tk.Image("photo", file=str(icon_path.with_suffix(".png")))
+                self.root.tk.call('wm', 'iconphoto', self.root._w, img)
+            elif sys.platform == "win32":  # Windows
+                self.root.iconbitmap(str(icon_path.with_suffix(".ico")))
+            elif sys.platform.startswith("linux"):  # Linux
+                img = tk.PhotoImage(file=str(icon_path.with_suffix(".png")))
+                self.root.tk.call('wm', 'iconphoto', self.root._w, img)
+        except Exception as e:
+            print(f"Error setting icon: {e}")
+        
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         self.root.geometry(

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Background with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B5998"/>
+      <stop offset="100%" style="stop-color:#2B4170"/>
+    </linearGradient>
+    <!-- Soft glow effect -->
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle background (Apple's rounded square shape) -->
+  <path d="
+    M 232 0
+    H 792
+    C 912 0 1024 112 1024 232
+    V 792
+    C 1024 912 912 1024 792 1024
+    H 232
+    C 112 1024 0 912 0 792
+    V 232
+    C 0 112 112 0 232 0
+    Z" fill="url(#bgGradient)"/>
+
+  <!-- Main seismic wave (enlarged and centered) -->
+  <path d="M192 512 
+           L322 512 
+           L372 342 
+           L472 682 
+           L572 342 
+           L672 682 
+           L722 512 
+           L852 512" 
+        stroke="white" 
+        stroke-width="64" 
+        fill="none" 
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        filter="url(#softGlow)"
+        opacity="0.95"/>
+
+  <!-- Subtle grid lines -->
+  <g stroke="white" stroke-width="2" opacity="0.08">
+    <line x1="192" y1="392" x2="852" y2="392"/>
+    <line x1="192" y1="632" x2="852" y2="632"/>
+    <line x1="322" y1="272" x2="322" y2="752"/>
+    <line x1="522" y1="272" x2="522" y2="752"/>
+    <line x1="722" y1="272" x2="722" y2="752"/>
+  </g>
+</svg>

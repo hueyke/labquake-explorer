@@ -39,12 +39,12 @@ class LabquakeExplorer:
     def setup_window(self) -> None:
         screen_height = self.root.winfo_screenheight()
         window_height = screen_height - (self.config.WINDOW_GAP * 3)
-        
+
         # Set window icon with correct path
         # Go up three levels from the current file to reach project root
         project_root = Path(__file__).parent.parent.parent
         icon_path = project_root / "assets" / "icons" / "labquake_explorer"
-        
+
         try:
             if sys.platform == "darwin":  # macOS
                 img = tk.Image("photo", file=str(icon_path.with_suffix(".png")))
@@ -56,7 +56,7 @@ class LabquakeExplorer:
                 self.root.tk.call('wm', 'iconphoto', self.root._w, img)
         except Exception as e:
             print(f"Error setting icon: {e}")
-        
+
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         self.root.geometry(
@@ -268,17 +268,31 @@ class LabquakeExplorer:
 
     def pick_strain_array_arrivals(self):
         path, item = self.get_full_path()
-        run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
-        temp = path[path.find('events/[')+8::]
-        event_idx = int(temp[:temp.find(']')])
+        # Extract index between 'runs/[' and the next ']'
+        run_start = path.find('runs/[') + 6
+        run_end = path.find(']', run_start)
+        run_idx = int(path[run_start:run_end])
+        
+        # Extract index between 'events/[' and the next ']'
+        event_start = path.find('events/[') + 8
+        event_end = path.find(']', event_start)
+        event_idx = int(path[event_start:event_end])
+        
         view = DynamicStrainArrivalPickerView(self, run_idx, event_idx)
         self.child_windows.append(view)
-        
+    
     def fit_cohesive_zone_model(self):
         path, item = self.get_full_path()
-        run_idx = int(path[path.find('runs/[')+6:path.find(']/events')])
-        temp = path[path.find('events/[')+8::]
-        event_idx = int(temp[:temp.find(']')])
+        # Extract index between 'runs/[' and the next ']'
+        run_start = path.find('runs/[') + 6
+        run_end = path.find(']', run_start)
+        run_idx = int(path[run_start:run_end])
+        
+        # Extract index between 'events/[' and the next ']'
+        event_start = path.find('events/[') + 8
+        event_end = path.find(']', event_start)
+        event_idx = int(path[event_start:event_end])
+        
         view = CZMFitterView(self, run_idx, event_idx)
         self.child_windows.append(view)
 

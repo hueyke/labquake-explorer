@@ -2,7 +2,7 @@
 
 import numpy as np
 import pandas as pd
-from utils import cohesive_crack as CohesiveCrack
+from labquake_explorer.utils import cohesive_crack as CohesiveCrack
 
 class DataProcessor:
     """

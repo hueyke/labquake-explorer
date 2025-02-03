@@ -1,7 +1,7 @@
 """Event processing for Labquake Explorer"""
 import h5py
 import numpy as np
-import utils.tpc5 as tpc5
+from labquake_explorer.utils import tpc5
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 

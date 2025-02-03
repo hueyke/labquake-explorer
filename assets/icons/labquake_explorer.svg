@@ -1,18 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Background with gradient -->
+  <!-- Background with Apple-style gradient -->
   <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3B5998"/>
+    <linearGradient id="bgGradient" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#5F7EC1"/>
       <stop offset="100%" style="stop-color:#2B4170"/>
     </linearGradient>
-    <!-- Soft glow effect -->
+    <!-- Apple-style soft glow -->
     <filter id="softGlow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feGaussianBlur stdDeviation="3" result="blur"/>
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
   </defs>
-
-  <!-- Squircle background (Apple's rounded square shape) -->
+  <!-- Squircle background with Apple's signature corner radius -->
   <path d="
     M 232 0
     H 792
@@ -24,30 +23,30 @@
     V 232
     C 0 112 112 0 232 0
     Z" fill="url(#bgGradient)"/>
-
-  <!-- Main seismic wave (enlarged and centered) -->
-  <path d="M192 512 
-           L322 512 
-           L372 342 
-           L472 682 
-           L572 342 
-           L672 682 
-           L722 512 
-           L852 512" 
+  <!-- Main seismic wave with Apple's smooth curves -->
+  <path d="M142 562 
+           C192 562, 232 562, 256 562
+           C276 562, 286 367, 306 192
+           C372 -33, 522 1150, 768 732
+           C768 732, 812 732, 902 732" 
         stroke="white" 
         stroke-width="64" 
         fill="none" 
         stroke-linecap="round"
         stroke-linejoin="round"
         filter="url(#softGlow)"
-        opacity="0.95"/>
-
-  <!-- Subtle grid lines -->
-  <g stroke="white" stroke-width="2" opacity="0.08">
-    <line x1="192" y1="392" x2="852" y2="392"/>
-    <line x1="192" y1="632" x2="852" y2="632"/>
-    <line x1="322" y1="272" x2="322" y2="752"/>
-    <line x1="522" y1="272" x2="522" y2="752"/>
-    <line x1="722" y1="272" x2="722" y2="752"/>
+        opacity="0.98"/>
+  <!-- Grid lines - adjusted to align with wave -->
+  <g stroke="white" stroke-width="6" opacity="0.15">
+    <!-- Horizontal lines -->
+    <line x1="142" y1="222" x2="902" y2="222"/>
+    <line x1="142" y1="392" x2="902" y2="392"/>
+    <line x1="142" y1="562" x2="902" y2="562"/>
+    <line x1="142" y1="732" x2="902" y2="732"/>
+    
+    <!-- Vertical lines -->
+    <line x1="256" y1="142" x2="256" y2="902"/>
+    <line x1="512" y1="142" x2="512" y2="902"/>
+    <line x1="768" y1="142" x2="768" y2="902"/>
   </g>
 </svg>

@@ -38,10 +38,10 @@ done
 iconutil -c icns "$ICONSET" -o "${BASENAME}.icns"
 
 # Convert one of the PNGs to ico for Windows
-convert "$ICONSET/icon_256x256.png" "${BASENAME}.ico"
+magick "$ICONSET/icon_256x256.png" "${BASENAME}.ico"
 
 # Keep a PNG version for Linux
-cp "$ICONSET/icon_128x128.png" "${BASENAME}.png"
+cp "$ICONSET/icon_256x256.png" "${BASENAME}.png"
 
 # Clean up the temporary iconset
 rm -rf "$ICONSET"

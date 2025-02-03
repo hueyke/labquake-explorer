@@ -24,6 +24,7 @@ class LabquakeExplorer:
         self.child_windows: List[tk.Toplevel] = []
         self.data_tree: Optional[ttk.Treeview] = None
         self.active_context_menu: Optional[tk.Menu] = None
+        self.current_file_path: Optional[Path] = None
         
         self.setup_window()
         self.create_widgets()
@@ -40,22 +41,7 @@ class LabquakeExplorer:
         screen_height = self.root.winfo_screenheight()
         window_height = screen_height - (self.config.WINDOW_GAP * 3)
 
-        # Set window icon with correct path
-        # Go up three levels from the current file to reach project root
-        project_root = Path(__file__).parent.parent.parent
-        icon_path = project_root / "assets" / "icons" / "labquake_explorer"
-
-        try:
-            if sys.platform == "darwin":  # macOS
-                img = tk.Image("photo", file=str(icon_path.with_suffix(".png")))
-                self.root.tk.call('wm', 'iconphoto', self.root._w, img)
-            elif sys.platform == "win32":  # Windows
-                self.root.iconbitmap(str(icon_path.with_suffix(".ico")))
-            elif sys.platform.startswith("linux"):  # Linux
-                img = tk.PhotoImage(file=str(icon_path.with_suffix(".png")))
-                self.root.tk.call('wm', 'iconphoto', self.root._w, img)
-        except Exception as e:
-            print(f"Error setting icon: {e}")
+        self.set_window_icon(self.root)
 
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
@@ -114,7 +100,8 @@ class LabquakeExplorer:
             
         self.data_tree = ttk.Treeview(self.root)
         self.data_tree.grid(row=0, column=0, columnspan=4, padx=2, pady=2, sticky="nsew")
-        self.data_tree.heading("#0", text="[Data File]", anchor="w")
+        header_text = self.current_file_path.name if self.current_file_path else "[Data File]"
+        self.data_tree.heading("#0", text=header_text, anchor="w")
         
         self.data_tree.bind("<Double-1>", self.on_double_click)
         self.data_tree.bind("<Button-1>", self.on_left_click)
@@ -130,22 +117,35 @@ class LabquakeExplorer:
             return
 
         try:
-            self.data_manager.load_file(Path(file_path))
+            path = Path(file_path)
+            self.data_manager.load_file(path)
+            self.current_file_path = path
             self.save_button.configure(state="normal")
             self.refresh_tree()
             print(f"File loaded: {file_path}")
+
+            # Expand the runs node
+            for item in self.data_tree.get_children(""):
+                if self.data_tree.item(item)["text"].startswith("runs"):
+                    self.data_tree.item(item, open=True)
+                    break
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load file: {e}")
 
     def save_file(self) -> None:
+        initial_file = self.current_file_path if self.current_file_path else None
+        initial_dir = self.current_file_path.parent if self.current_file_path else None
+
         file_path = filedialog.asksaveasfilename(
-            title="Save data file",
-            filetypes=(
-                ("NPZ file", ".npz"),
-                ("HDF5 file", ".h5 .hdf5"),
-                ("All files", "*")
+                title="Save data file",
+                initialfile=initial_file.name if initial_file else None,
+                initialdir=str(initial_dir) if initial_dir else None,
+                filetypes=(
+                    ("NPZ file", ".npz"),
+                    ("HDF5 file", ".h5 .hdf5"),
+                    ("All files", "*")
+                )
             )
-        )
         if not file_path:
             return
 
@@ -187,7 +187,7 @@ class LabquakeExplorer:
         elif isinstance(data, list):
             for i, value in enumerate(data):
                 try:
-                    label = f"[{i}] {value['name']}"
+                    label = f"[{i}]: {value['name']}"
                 except:
                     label = self.format_tree_label(f"[{i}]", value)
                 iid = self.data_tree.insert(parent_iid, "end", text=label)
@@ -252,6 +252,7 @@ class LabquakeExplorer:
         view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=True, 
                                  callback=save_and_refresh,
                                  xlabel='index', ylabel=item, title=path)
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
     def min_max(self):
@@ -263,6 +264,7 @@ class LabquakeExplorer:
         picked_idx = [idx_max, idx_min]
         view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=False,
                                  xlabel='index', ylabel=item, title=path)
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
 
@@ -272,39 +274,43 @@ class LabquakeExplorer:
         run_start = path.find('runs/[') + 6
         run_end = path.find(']', run_start)
         run_idx = int(path[run_start:run_end])
-        
+
         # Extract index between 'events/[' and the next ']'
         event_start = path.find('events/[') + 8
         event_end = path.find(']', event_start)
         event_idx = int(path[event_start:event_end])
-        
+
         view = DynamicStrainArrivalPickerView(self, run_idx, event_idx)
+        self.set_window_icon(view)
         self.child_windows.append(view)
-    
+
     def fit_cohesive_zone_model(self):
         path, item = self.get_full_path()
         # Extract index between 'runs/[' and the next ']'
         run_start = path.find('runs/[') + 6
         run_end = path.find(']', run_start)
         run_idx = int(path[run_start:run_end])
-        
+
         # Extract index between 'events/[' and the next ']'
         event_start = path.find('events/[') + 8
         event_end = path.find(']', event_start)
         event_idx = int(path[event_start:event_end])
-        
+
         view = CZMFitterView(self, run_idx, event_idx)
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
 
     def pick_indices(self):
         item = self.data_tree.selection()[0]
         view = IndexPickerView(self, item_y=self.get_full_path(item)[0])
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
     def extract_slope(self):
         item = self.data_tree.selection()[0]
         view = SlopeAnalyzerView(self, item_y=self.get_full_path(item)[0])
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
     def pick_run(self):
@@ -317,6 +323,7 @@ class LabquakeExplorer:
         view = PointsSelectorView(self, x, y, picked_idx, add_remove_enabled=False, 
                                  callback=lambda idx: self.extract_run(idx),
                                  xlabel='index', ylabel=item_name, title=item_path)
+        self.set_window_icon(view)
         self.child_windows.append(view)
 
     def extract_events(self):
@@ -390,10 +397,12 @@ class LabquakeExplorer:
         if type(data) is np.ndarray:
             print(f"plotting {item}")
             view = SimplePlotView(self)
+            self.set_window_icon(view)
             view.ax.plot(data)
             view.ax.set_xlabel('index')
             view.ax.set_ylabel(item)
             view.ax.set_title(path.replace('/[', '['))
+            self.child_windows.append(view)
         elif type(data) is dict:
             print('dict')
         elif type(data) is list:
@@ -531,10 +540,18 @@ class LabquakeExplorer:
 
     def on_closing(self) -> None:
         try:
+            # First withdraw (hide) all windows
+            for window in self.child_windows[:]:
+                if window.winfo_exists():
+                    window.withdraw()
+            self.root.withdraw()
+            
+            # Then destroy them
             for window in self.child_windows[:]:
                 if window.winfo_exists():
                     window.destroy()
                 self.child_windows.remove(window)
+                
             self.root.destroy()
             sys.exit(0)
         except Exception as e:
@@ -544,3 +561,25 @@ class LabquakeExplorer:
     def setup_bindings(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.root.bind("<Delete>", self.on_delete)
+
+    def set_window_icon(self, window: tk.Tk | tk.Toplevel) -> None:
+        """Set the application icon for any window.
+
+        Args:
+            window: The window (root or Toplevel) to set the icon for
+        """
+        # Go up three levels from the current file to reach project root
+        project_root = Path(__file__).parent.parent.parent
+        icon_path = project_root / "assets" / "icons" / "labquake_explorer"
+
+        try:
+            if sys.platform == "darwin":  # macOS
+                img = tk.Image("photo", file=str(icon_path.with_suffix(".png")))
+                window.tk.call('wm', 'iconphoto', window._w, img)
+            elif sys.platform == "win32":  # Windows
+                window.iconbitmap(str(icon_path.with_suffix(".ico")))
+            elif sys.platform.startswith("linux"):  # Linux
+                img = tk.PhotoImage(file=str(icon_path.with_suffix(".png")))
+                window.tk.call('wm', 'iconphoto', window._w, img)
+        except Exception as e:
+            print(f"Error setting icon for window: {e}")

@@ -162,13 +162,15 @@ class DataManager:
 
     def get_data(self, path: str) -> Any:
         """Get data at specified path"""
+        if not path:  # Handle empty path
+            return current
         if not self.data:
             raise ValueError("No data loaded")
-            
+        parts = [p for p in path.split('/') if p]  # Split and filter out empty parts
         current = self.data
-        for key in path.split('/'):
-            if key[0] == '[' and key[-1] == ']':
-                key = int(key[1:-1])
+        for key in parts:
+            if key.startswith('[') and key.endswith(']'):
+                key = int(key[1:-1])  # Convert list index to integer
             current = current[key]
         return current
 

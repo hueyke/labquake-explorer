@@ -90,7 +90,7 @@ class CZMFitterView(tk.Toplevel):
             increment=2,
             textvariable=self.filter_window,
             width=10,
-            validate='all',
+            validate='focusout',
             validatecommand=(self.register(self.validate_filter_window), '%P')
         )
         self.filter_spinbox.pack(side=tk.LEFT)

@@ -11,21 +11,24 @@
       <feComposite in="SourceGraphic" in2="blur" operator="over"/>
     </filter>
   </defs>
-  <!-- Squircle background with Apple's signature corner radius -->
-  <path d="
-    M 232 0
-    H 792
-    C 912 0 1024 112 1024 232
-    V 792
-    C 1024 912 912 1024 792 1024
-    H 232
-    C 112 1024 0 912 0 792
-    V 232
-    C 0 112 112 0 232 0
-    Z" fill="url(#bgGradient)"/>
-  
-  <!-- Group containing the scaled wave and grid -->
-  <g transform="translate(512, 512) scale(0.75) translate(-512, -512)">
+
+  <!-- Adjusted Squircle background (shrunk to match reference) -->
+  <g transform="translate(100, 100) scale(0.82)">
+    <path d="
+      M 232 0
+      H 792
+      C 912 0 1024 112 1024 232
+      V 792
+      C 1024 912 912 1024 792 1024
+      H 232
+      C 112 1024 0 912 0 792
+      V 232
+      C 0 112 112 0 232 0
+      Z" fill="url(#bgGradient)"/>
+  </g>
+
+  <!-- Group containing the scaled wave and grid, reduced further -->
+  <g transform="translate(512, 512) scale(0.70) translate(-512, -512)">
     <!-- Main seismic wave with Apple's smooth curves -->
     <path d="M142 562 
              C192 562, 232 562, 256 562
@@ -39,7 +42,7 @@
           stroke-linejoin="round"
           filter="url(#softGlow)"
           opacity="0.98"/>
-    
+
     <!-- Grid lines - adjusted to align with wave -->
     <g stroke="white" stroke-width="6" opacity="0.15">
       <!-- Horizontal lines -->

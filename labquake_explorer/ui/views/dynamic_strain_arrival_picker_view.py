@@ -148,7 +148,7 @@ class DynamicStrainArrivalPickerView(tk.Toplevel):
                 self.fitting_channels = self.event["strain"]["fitting_channels"]
             else:
                 if exp_number >= 5958:
-                    self.fitting_channels = [True, True, True, True, True, True, True, True, True, False, False, False, False, False, False, False]
+                    self.fitting_channels = [False, True, True, True, True, True, True, True, True, False, False, False, False, False, False, False]
                 else: 
                     # self.fitting_channels = [i % 2 == 0 for i in range(n_channels)]
                     self.fitting_channels = [False, False, False, False, False, False, True, False, True, False, True, False, True, False, False, False]

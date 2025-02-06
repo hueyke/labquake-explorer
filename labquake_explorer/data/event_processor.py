@@ -97,6 +97,10 @@ class EventProcessor:
             idx_before = np.argmin(np.abs(ts - time_before))
             idx_after = np.argmin(np.abs(ts - time_after))
             tt = ts[idx_before:idx_after]
+
+            idx_before_strain = np.argmin(np.abs(run_data['strain']['time'] - time_before))
+            idx_after_strain = np.argmin(np.abs(run_data['strain']['time'] - time_before))
+            idx_event_strain = range(idx_before_strain, idx_after_strain + 1)
             
             # Extract strain data
             y = np.zeros((n_channels, len(tt)))
@@ -104,13 +108,13 @@ class EventProcessor:
                 y[j, :] = tpc5.getVoltageData(f, j + 1)[idx_before:idx_after]
                 y[j, :] -= y[j, 0:int(y.shape[1] / 100)].mean()
             
-            # Return formatted strain data
+            # Return formatted strain dat
             return {
                 'filename_downsampled': run_data['strain'].get('filename_downsampled', ''),
                 'filename': run_data['strain']['filename'],
                 'time': run_data['time'][0] + run_data['strain']['time_offset'] + 
-                       run_data['strain']['time'][idx_event],
-                'raw': run_data['strain']['raw'][:, idx_event],
+                       run_data['strain']['time'][idx_event_strain],
+                'raw': run_data['strain']['raw'][:, idx_event_strain],
                 'original': {
                     'time': tt,
                     'raw': y

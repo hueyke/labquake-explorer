@@ -69,6 +69,8 @@ class DataManager:
                         print(f"Error loading {key}: {str(exc)}")
                 
                 return result
+            
+            self.data = load_group(h5data)
 
     def save_file(self, path: Path) -> None:
         if not self.data:

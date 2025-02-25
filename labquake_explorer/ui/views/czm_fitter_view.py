@@ -341,15 +341,9 @@ class CZMFitterView(tk.Toplevel):
 
         # Get data
         t = self.event["strain"]["original"]["time"] - self.event["event_time"]
-        gauge_idx = self.strain_gauge.get()
-        sxy = DataProcessor.shear_strain_to_stress(
-            self.E, self.nu, DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][gauge_idx])
-        )
-        syy = DataProcessor.shear_strain_to_stress(
-            self.E, self.nu, DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][14])
-        )
-        sxy *= 1e-6  # Convert to MPa
-        syy *= 1e-6  # Convert to MPa
+        gage_idx = self.strain_gauge.get()
+        exy = DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][gage_idx])
+        eyy = DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][14])
 
         # Apply filter if enabled
         if self.filtering:
@@ -357,13 +351,13 @@ class CZMFitterView(tk.Toplevel):
             if window_length % 2 == 0:
                 window_length += 1
                 self.filter_window.set(window_length)
-            sxy = signal.savgol_filter(sxy, window_length, 2)
-            syy = signal.savgol_filter(syy, window_length, 2)
+            exy = signal.savgol_filter(exy, window_length, 2)
+            eyy = signal.savgol_filter(eyy, window_length, 2)
 
-        idx_zero = np.argmin(np.abs(t - line_positions[0]))
+        idx_zero = np.argmin(np.abs(t - line_positions[2]))
         # Plot data
-        self.axs[0].plot(t, sxy - sxy[idx_zero], 'b-', label='Sxy')
-        self.axs[1].plot(t, syy - syy[idx_zero], 'r-', label='Syy')
+        self.axs[0].plot(t, exy - exy[idx_zero], 'b-', label='Exy')
+        self.axs[1].plot(t, eyy - eyy[idx_zero], 'r-', label='Eyy')
 
         # Add delta_sigma_xy to the Sxy axis
         rupture_speed = self.Cf.get()
@@ -374,19 +368,22 @@ class CZMFitterView(tk.Toplevel):
             x_zeroed = x  # Default to non-zeroed if not enough vertical lines
 
         # Compute delta_sigma_xy
-        delta_sigma_xy, delta_sigma_yy = CohesiveCrack.delta_sigmas(
+        delta_sigma_xx, delta_sigma_xy, delta_sigma_yy = CohesiveCrack.delta_sigmas(
             x_zeroed, self.y.get(), self.Xc.get(), self.Cf.get(), 
             self.C_s, self.C_d, self.nu, self.Gc.get(), self.E
         )
-        delta_sigma_xy -= delta_sigma_xy[idx_zero]
-        delta_sigma_yy -= delta_sigma_yy[idx_zero]
-        self.axs[0].plot(t, delta_sigma_xy * 1e-6, 'g--', label='CZM')
-        self.axs[1].plot(t, delta_sigma_yy * 1e-6, 'g--', label='CZM')
+        delta_e_xx, delta_e_xy, delta_e_yy = DataProcessor.stress_to_strain(
+            self.E, self.nu, delta_sigma_xx, delta_sigma_xy, delta_sigma_yy
+        )
+        delta_e_xy -= delta_e_xy[idx_zero]
+        delta_e_yy -= delta_e_yy[idx_zero]
+        self.axs[0].plot(t, delta_e_xy, 'g--', label='CZM')
+        self.axs[1].plot(t, delta_e_yy, 'g--', label='CZM')
 
         # Labels and title
         self.axs[1].set_xlabel('Time (s)')
-        self.axs[0].set_ylabel('Sxy (MPa)')
-        self.axs[1].set_ylabel('Syy (MPa)')
+        self.axs[0].set_ylabel('Exy')
+        self.axs[1].set_ylabel('Eyy')
         
         self.fig.suptitle(f"{self.data_manager.get_data('name')} run{self.run_idx:02d} event{self.event_idx}")
 
@@ -467,42 +464,42 @@ class CZMFitterView(tk.Toplevel):
             return
             
         # Get x positions of vertical lines
-        t1, t2 = sorted([self.vlines[0].get_xdata()[0], self.vlines[2].get_xdata()[0]])
-        t_tip = self.vlines[0].get_xdata()[1]
+        t0, t1, t2 = sorted([self.vlines[0].get_xdata()[0], self.vlines[1].get_xdata()[0], self.vlines[2].get_xdata()[0]])
         
         # Get experimental data
         t = self.event["strain"]["original"]["time"] - self.event["event_time"]
-        sxy = DataProcessor.shear_strain_to_stress(
-            self.E, self.nu, 
-            DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][6])
-        ) * 1e-6  # Convert to MPa
+        gage_idx = self.strain_gauge.get()
+        exy = DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][gage_idx])
         
         if self.filtering:
             window_length = self.filter_window.get()
-            sxy = signal.savgol_filter(sxy, window_length, 2)
+            exy = signal.savgol_filter(exy, window_length, 2)
         
         # Get indices for fitting region
         mask = (t >= t1) & (t <= t2)
         t_fit = t[mask]
-        sxy_fit = sxy[mask]
+        exy_fit = exy[mask]
         
         # Zero the data at the first point
-        idx_zero = np.argmin(np.abs(t_fit - t1))
-        sxy_fit -= sxy_fit[idx_zero]
+        idx_zero = np.argmin(np.abs(t_fit - t2))
+        exy_fit -= exy_fit[idx_zero]
         
         # Define objective function for optimization
         def objective(params):
             Gc, Xc = params
             x = -t_fit * self.Cf.get()
-            x_zeroed = x + t_tip * self.Cf.get()
+            x_zeroed = x + t1 * self.Cf.get()
             
-            delta_sigma_xy, _ = CohesiveCrack.delta_sigmas(
+            delta_sigma_xx, delta_sigma_xy, delta_sigma_yy = CohesiveCrack.delta_sigmas(
                 x_zeroed, self.y.get(), Xc, self.Cf.get(), 
                 self.C_s, self.C_d, self.nu, Gc, self.E
             )
-            delta_sigma_xy -= delta_sigma_xy[idx_zero]
+            delta_e_xx, delta_e_xy, delta_e_yy = DataProcessor.stress_to_strain(
+                self.E, self.nu, delta_sigma_xx, delta_sigma_xy, delta_sigma_yy
+            )
+            delta_e_xy -= delta_e_xy[idx_zero]
             
-            return np.sum((sxy_fit + delta_sigma_xy * 1e-6) ** 2)
+            return np.sum(((exy_fit - delta_e_xy) * 1e9) ** 2)
         
         # Initial guess
         initial_guess = [self.Gc.get(), self.Xc.get()]

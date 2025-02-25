@@ -34,7 +34,7 @@ class CohesiveCrack:
         Sxx_tmp, Syy_tmp, Sxy_tmp = cls._compute_stress_components(M_z_d, M_z_s, alpha_s_value, alpha_d_value)
         Sxx, Syy, Sxy = cls._compute_stresses(Sxx_tmp, Syy_tmp, Sxy_tmp, alpha_s_value, D_value)
         
-        return Sxy, Syy
+        return Sxx, Sxy, Syy
 
     @staticmethod
     def alpha_s(C_f, C_s):

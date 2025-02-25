@@ -118,6 +118,24 @@ class DataProcessor:
         G = E / (2 * (1 + poisson_ratio))
         stress = G * strain
         return stress
+    
+    @staticmethod
+    def stress_to_strain(E: float, poisson_ratio: float, sigma_xx: float | np.ndarray[float], sigma_xy: float | np.ndarray[float], sigma_yy: float | np.ndarray[float]) -> float | np.ndarray[float]:
+        """
+        Calculate stress from shear strain by converting Young's modulus (E) to shear modulus (G).
+        
+        Args:
+            E (float): Young's modulus (elastic modulus) in units of stress (e.g., Pa).
+            poisson_ratio (float): Poisson's ratio (dimensionless).
+            strain (float): Shear strain (dimensionless).
+            
+        Returns:
+            float: Shear stress in the same units as Young's modulus.
+        """
+        epsilon_xx = (sigma_xx - poisson_ratio * sigma_yy) / E
+        epsilon_yy = (sigma_yy - poisson_ratio * sigma_xx) / E
+        epsilon_xy = (1 + poisson_ratio) / E * sigma_xy
+        return epsilon_xx, epsilon_xy, epsilon_yy
 
     # @staticmethod
     # def highpass_filter(data, cutoff, fs, order=4):

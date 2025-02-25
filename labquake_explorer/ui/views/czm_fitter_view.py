@@ -22,6 +22,8 @@ class CZMFitterView(tk.Toplevel):
         self.event = None
         self.filtering = False
         self.data_manager = self.parent.data_manager
+        self.strain_gauge = tk.IntVar(value=6)  # Default to gauge 6
+        self.num_gauges = None  # Will be set after loading event
         
         # Material properties
         self.E = 51e9      # Young's modulus (Pa)
@@ -44,9 +46,6 @@ class CZMFitterView(tk.Toplevel):
         self.Xc = tk.DoubleVar()
         self.Gc = tk.DoubleVar()
         
-        # Load initial event before UI creation
-        self.load_event(self.event_idx)
-        
         # Configure window
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -54,6 +53,9 @@ class CZMFitterView(tk.Toplevel):
         # Create UI elements
         self.create_control_frame()
         self.create_parameters_frame()
+        
+        # Load initial event before UI creation
+        self.load_event(self.event_idx)
         
         # Connect event handlers
         self.canvas.mpl_connect('button_press_event', self.on_mouse_press)
@@ -76,6 +78,17 @@ class CZMFitterView(tk.Toplevel):
         ttk.Label(control_frame, text="Event Index:").pack(side=tk.LEFT, padx=5)
         self.event_combobox = ttk.Combobox(control_frame, width=10)
         self.event_combobox.pack(side=tk.LEFT, padx=5)
+
+        # Strain gauge selection
+        ttk.Label(control_frame, text="Strain Gauge:").pack(side=tk.LEFT, padx=5)
+        self.gauge_combobox = ttk.Combobox(
+            control_frame,
+            textvariable=self.strain_gauge,
+            width=5,
+            state="readonly"
+        )
+        self.gauge_combobox.pack(side=tk.LEFT, padx=5)
+        self.gauge_combobox.bind("<<ComboboxSelected>>", self.update_plot)
         
         # Filter controls
         filter_frame = ttk.Frame(control_frame)
@@ -172,6 +185,7 @@ class CZMFitterView(tk.Toplevel):
         )
         save_button.pack(side=tk.LEFT, padx=5)
 
+        
     def load_event(self, event_idx):
         # Clear existing lines from both lists and axes
         for line in self.vlines:
@@ -180,39 +194,81 @@ class CZMFitterView(tk.Toplevel):
             line.remove()
         self.vlines = []
         self.vlines_twin = []
-        
+
         self.event_idx = event_idx
         self.event = self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]")
+
+        # Dynamically determine number of strain gauges
+        self.num_gauges = len(self.event["strain"]["original"]["raw"])
+        gauge_options = [str(i) for i in range(self.num_gauges)]
+        self.gauge_combobox.config(values=gauge_options)
 
         # Update view limits and parameters if saved data exists
         if 'czm_parms' in self.event:
             params = self.event['czm_parms']
-            self.x_min = params[6]
-            self.x_max = params[7]
-            self.Cf.set(params[0])
-            self.y.set(params[1])
-            self.Xc.set(params[2])
-            self.Gc.set(params[3])
-            # Create new vertical lines at saved positions
-            vline_x0, vline_x1 = params[4], params[5]
-            for x_pos in [vline_x0, vline_x1]:
-                if hasattr(self, 'axs'):
-                    vline = self.axs[0].axvline(x=x_pos, color='g', linestyle='--', alpha=0.5)
-                    vline_twin = self.axs[1].axvline(x=x_pos, color='g', linestyle='--', alpha=0.5)
-                    self.vlines.append(vline)
-                    self.vlines_twin.append(vline_twin)
+            if isinstance(params, list) and len(params) == 8:
+                self._set_parameters(*params[:4])
+                vline_x0, vline_x1 = params[4], params[5]
+                vline_x2 = vline_x1 * 2 - vline_x0
+                self.x_lim_min, self.x_lim_max = params[6], params[7]
+                self.strain_gauge.set(min(6, self.num_gauges - 1))
+            elif isinstance(params, dict):
+                self._set_parameters(params['Cf'], params['y'], params['Xc'], params['Gc'])
+                vline_x0, vline_x1, vline_x2 = params['x_min'], params['x_tip'], params['x_max']
+                self.x_lim_min, self.x_lim_max = params['x_lim_min'], params['x_lim_max']
+                if 'strain_gauge' in params and 0 <= params['strain_gauge'] < self.num_gauges:
+                    self.strain_gauge.set(params['strain_gauge'])
+                else:
+                    self.strain_gauge.set(min(6, self.num_gauges - 1))
+            self.gauge_combobox.set(self.strain_gauge.get())
+            self._plot_vertical_lines([vline_x0, vline_x1, vline_x2])
+            self.event['czm_parms'] = {
+                'Cf': self.Cf.get(),
+                'y': self.y.get(),
+                'Xc': self.Xc.get(),
+                'Gc': self.Gc.get(),
+                'x_min': vline_x0,
+                'x_tip': vline_x1,
+                'x_max': vline_x2,
+                'x_lim_min': self.x_lim_min,
+                'x_lim_max': self.x_lim_max
+            }
         else:
-            self.x_min = -0.1
-            self.x_max = 0.1
-            try:
-                self.Cf.set(np.abs(self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/rupture_speed")))
-            except:
-                self.Cf.set(10)
-            self.y.set(8e-3)
-            self.Xc.set(1)
-            self.Gc.set(1)
+            self._set_default_parameters()
 
-        self.axs[0].set_xlim(self.x_min, self.x_max)
+        self.axs[0].set_xlim(self.x_lim_min, self.x_lim_max)
+
+    def _set_parameters(self, Cf, y, Xc, Gc):
+        """Helper method to set parameters"""
+        self.Cf.set(Cf)
+        self.y.set(y)
+        self.Xc.set(Xc)
+        self.Gc.set(Gc)
+
+    def _set_default_parameters(self):
+        """Helper method to set default parameters"""
+        self.x_lim_min, self.x_lim_max = -0.1, 0.1
+        try:
+            rupture_speed = self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]/rupture_speed")
+            self.Cf.set(np.abs(rupture_speed))
+        except:
+            self.Cf.set(10)
+        self.y.set(8e-3)
+        self.Xc.set(1)
+        self.Gc.set(1)
+
+    def _plot_vertical_lines(self, positions):
+        """Helper method to plot vertical lines"""
+        if not hasattr(self, 'axs'):
+            return
+        for i, x_pos in enumerate(positions):
+            color = 'r' if i == 1 else 'g'
+            linestyle = '--'
+            alpha = 0.5
+            vline = self.axs[0].axvline(x=x_pos, color=color, linestyle=linestyle, alpha=alpha)
+            vline_twin = self.axs[1].axvline(x=x_pos, color=color, linestyle=linestyle, alpha=alpha)
+            self.vlines.append(vline)
+            self.vlines_twin.append(vline_twin)
 
     def init_event_combobox(self):
         n_events = len(self.data_manager.get_data(f"runs/[{self.run_idx}]/events"))
@@ -237,21 +293,23 @@ class CZMFitterView(tk.Toplevel):
         if hasattr(self, 'vlines') and self.vlines is not None and len(self.vlines) >= 2:
             vline_x0 = self.vlines[0].get_xdata()[0]
             vline_x1 = self.vlines[1].get_xdata()[0]
+            vline_x2 = self.vlines[2].get_xdata()[0]
             
             # Update x limits from current view
-            self.x_min, self.x_max = self.axs[0].get_xlim()
+            self.x_lim_min, self.x_lim_max = self.axs[0].get_xlim()
             
             # Create or update the czm_parms in the event data
-            params = [
-                self.Cf.get(),
-                self.y.get(),
-                self.Xc.get(),
-                self.Gc.get(),
-                vline_x0,
-                vline_x1,
-                self.x_min,
-                self.x_max
-            ]
+            params = {
+                'Cf': self.Cf.get(),
+                'y': self.y.get(),
+                'Xc': self.Xc.get(),
+                'Gc': self.Gc.get(),
+                'x_min': vline_x0,
+                'x_tip': vline_x1,
+                'x_max': vline_x2,
+                'x_lim_min': self.x_lim_min,
+                'x_lim_max': self.x_lim_max
+            }
             
             # Update the event data
             self.event['czm_parms'] = params
@@ -267,7 +325,14 @@ class CZMFitterView(tk.Toplevel):
         if self.vlines is not None:
             line_positions = [line.get_xdata()[0] for line in self.vlines]
         elif 'czm_parms' in self.event:  # Use saved line positions if available
-            line_positions = [self.event['czm_parms'][4], self.event['czm_parms'][5]]
+            if isinstance(self.event['czm_parms'], list) and len(self.event['czm_parms']) == 8:
+                line_positions = [self.event['czm_parms'][4], self.event['czm_parms'][5], self.event['czm_parms'][5]*2-self.event['czm_parms'][4]]
+            elif isinstance(self.event['czm_parms'], dict):
+                line_positions = [self.event['czm_parms']['x_min'], self.event['czm_parms']['x_tip'], self.event['czm_parms']['x_max']]
+        # Handle vertical lines
+        if not line_positions:  # Initialize lines if they don't exist
+            # Calculate evenly spaced positions across full range
+            line_positions = np.linspace(self.x_lim_min, self.x_lim_max, 5)[1:-2]  # Create 5 points and take middle 3
 
         # Clear existing plots
         xlim_temp = self.axs[0].get_xlim()
@@ -276,8 +341,9 @@ class CZMFitterView(tk.Toplevel):
 
         # Get data
         t = self.event["strain"]["original"]["time"] - self.event["event_time"]
+        gauge_idx = self.strain_gauge.get()
         sxy = DataProcessor.shear_strain_to_stress(
-            self.E, self.nu, DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][6])
+            self.E, self.nu, DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][gauge_idx])
         )
         syy = DataProcessor.shear_strain_to_stress(
             self.E, self.nu, DataProcessor.voltage_to_strain(self.event["strain"]["original"]["raw"][14])
@@ -294,11 +360,6 @@ class CZMFitterView(tk.Toplevel):
             sxy = signal.savgol_filter(sxy, window_length, 2)
             syy = signal.savgol_filter(syy, window_length, 2)
 
-        # Handle vertical lines
-        if not line_positions:  # Initialize lines if they don't exist
-            # Calculate evenly spaced positions across full range
-            line_positions = np.linspace(self.x_min, self.x_max, 5)[1:-2]  # Create 7 points and take middle 5
-
         idx_zero = np.argmin(np.abs(t - line_positions[0]))
         # Plot data
         self.axs[0].plot(t, sxy - sxy[idx_zero], 'b-', label='Sxy')
@@ -306,9 +367,9 @@ class CZMFitterView(tk.Toplevel):
 
         # Add delta_sigma_xy to the Sxy axis
         rupture_speed = self.Cf.get()
-        x = t * rupture_speed  # x in meters
+        x = -t * rupture_speed  # x in meters
         if len(line_positions) >= 2:
-            x_zeroed = x - line_positions[1] * rupture_speed  # Zeroed at vertical line index 2
+            x_zeroed = x + line_positions[1] * rupture_speed  # Zeroed at vertical line index 2
         else:
             x_zeroed = x  # Default to non-zeroed if not enough vertical lines
 
@@ -317,7 +378,9 @@ class CZMFitterView(tk.Toplevel):
             x_zeroed, self.y.get(), self.Xc.get(), self.Cf.get(), 
             self.C_s, self.C_d, self.nu, self.Gc.get(), self.E
         )
-        self.axs[0].plot(t, -delta_sigma_xy * 1e-6, 'g--', label='CZM')
+        delta_sigma_xy -= delta_sigma_xy[idx_zero]
+        delta_sigma_yy -= delta_sigma_yy[idx_zero]
+        self.axs[0].plot(t, delta_sigma_xy * 1e-6, 'g--', label='CZM')
         self.axs[1].plot(t, delta_sigma_yy * 1e-6, 'g--', label='CZM')
 
         # Labels and title
@@ -399,12 +462,13 @@ class CZMFitterView(tk.Toplevel):
     
     def fit_parameters(self):
         """Fit Gamma and Xc parameters to the data between vertical lines."""
-        if len(self.vlines) < 2:
-            print("Need two vertical lines to define fitting region")
+        if len(self.vlines) < 3:
+            print("Need 3 vertical lines to define fitting region")
             return
             
         # Get x positions of vertical lines
-        t1, t2 = sorted([line.get_xdata()[0] for line in self.vlines[:2]])
+        t1, t2 = sorted([self.vlines[0].get_xdata()[0], self.vlines[2].get_xdata()[0]])
+        t_tip = self.vlines[0].get_xdata()[1]
         
         # Get experimental data
         t = self.event["strain"]["original"]["time"] - self.event["event_time"]
@@ -423,19 +487,20 @@ class CZMFitterView(tk.Toplevel):
         sxy_fit = sxy[mask]
         
         # Zero the data at the first point
-        idx_zero = np.argmin(np.abs(t - t1))
-        sxy_fit = sxy_fit - sxy[idx_zero]
+        idx_zero = np.argmin(np.abs(t_fit - t1))
+        sxy_fit -= sxy_fit[idx_zero]
         
         # Define objective function for optimization
         def objective(params):
             Gc, Xc = params
-            x = t_fit * self.Cf.get()
-            x_zeroed = x - t2 * self.Cf.get()
+            x = -t_fit * self.Cf.get()
+            x_zeroed = x + t_tip * self.Cf.get()
             
             delta_sigma_xy, _ = CohesiveCrack.delta_sigmas(
                 x_zeroed, self.y.get(), Xc, self.Cf.get(), 
                 self.C_s, self.C_d, self.nu, Gc, self.E
             )
+            delta_sigma_xy -= delta_sigma_xy[idx_zero]
             
             return np.sum((sxy_fit + delta_sigma_xy * 1e-6) ** 2)
         
@@ -457,6 +522,7 @@ class CZMFitterView(tk.Toplevel):
             # Update parameters with fitted values
             self.Gc.set(result.x[0])
             self.Xc.set(result.x[1])
+            
             self.update_plot()
             print(f"Fitted parameters: Gc={result.x[0]:.2e}, Xc={result.x[1]:.2f}")
         else:

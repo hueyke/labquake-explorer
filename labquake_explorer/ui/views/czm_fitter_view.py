@@ -332,7 +332,7 @@ class CZMFitterView(tk.Toplevel):
         # Handle vertical lines
         if not line_positions:  # Initialize lines if they don't exist
             # Calculate evenly spaced positions across full range
-            line_positions = np.linspace(self.x_lim_min, self.x_lim_max, 5)[1:-2]  # Create 5 points and take middle 3
+            line_positions = np.linspace(self.x_lim_min, self.x_lim_max, 5)[1:-1]  # Create 5 points and take middle 3
 
         # Clear existing plots
         xlim_temp = self.axs[0].get_xlim()

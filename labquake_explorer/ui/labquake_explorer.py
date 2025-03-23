@@ -11,7 +11,8 @@ from labquake_explorer.data.data_manager import DataManager
 from labquake_explorer.utils.config import LabquakeExplorerConfig
 from labquake_explorer.ui.views import (
     SimplePlotView, PointsSelectorView, IndexPickerView,
-    SlopeAnalyzerView, DynamicStrainArrivalPickerView, CZMFitterView
+    SlopeAnalyzerView, DynamicStrainArrivalPickerView, CZMFitterView,
+    EventAnalyzerView
 )
 
 class LabquakeExplorer:
@@ -30,12 +31,12 @@ class LabquakeExplorer:
         self.create_widgets()
         self.setup_bindings()
 
-        # # debug
-        # file_path = Path("/Users/hueyke/sources/PSU-Dynamic-Strain/Data/p5993ec.npz")
-        # self.data_manager.load_file(file_path)
-        # self.save_button.configure(state="normal")
-        # self.refresh_tree()
-        # print(f"File loaded: {file_path}")
+        # debug
+        file_path = Path("/Users/hueyke/Library/CloudStorage/SynologyDrive-KeResearch-data/PSU/Gc-dataset/p5993ec.npz")
+        self.data_manager.load_file(file_path)
+        self.save_button.configure(state="normal")
+        self.refresh_tree()
+        print(f"File loaded: {file_path}")
 
     def setup_window(self) -> None:
         screen_height = self.root.winfo_screenheight()
@@ -62,6 +63,7 @@ class LabquakeExplorer:
         self.run_menu.add_command(label="Pick Events", command=self.pick_events)
 
         self.event_menu = tk.Menu(self.root, tearoff=0)
+        self.event_menu.add_command(label="Analyze Event", command=self.analyze_event)
         self.event_menu.add_command(label="Pick Arrivals", command=self.pick_strain_array_arrivals)
         self.event_menu.add_command(label="Fit Cohesive Zone Model", command=self.fit_cohesive_zone_model)
 
@@ -300,6 +302,21 @@ class LabquakeExplorer:
         self.set_window_icon(view)
         self.child_windows.append(view)
 
+    def analyze_event(self):
+        path, item = self.get_full_path()
+        # Extract index between 'runs/[' and the next ']'
+        run_start = path.find('runs/[') + 6
+        run_end = path.find(']', run_start)
+        run_idx = int(path[run_start:run_end])
+
+        # Extract index between 'events/[' and the next ']'
+        event_start = path.find('events/[') + 8
+        event_end = path.find(']', event_start)
+        event_idx = int(path[event_start:event_end])
+
+        view = EventAnalyzerView(self, run_idx, event_idx)
+        self.set_window_icon(view)
+        self.child_windows.append(view)
 
     def pick_indices(self):
         item = self.data_tree.selection()[0]

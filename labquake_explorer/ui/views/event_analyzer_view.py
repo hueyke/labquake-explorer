@@ -13,63 +13,73 @@ class EventAnalyzerView(tk.Toplevel):
     def __init__(self, parent, run_idx, event_idx, item_y="shear_stress", item_x="displacement"):
         self.parent = parent
         super().__init__(self.parent.root)
-        self.title("Event Analyzer")
-        
+        self.title(f"Event Analyzer - Event {event_idx}")
+
         # Initialize data attributes
         self.run_idx = run_idx
         self.event_idx = event_idx
         self.data_manager = self.parent.data_manager
         self.event = None
-        
+
         # Load event data
         self.event = self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]")
-        
+
         # Store the initial data fields
         self.item_y = item_y  # Default to shear_stress
         self.item_x = item_x  # Default to displacement
-        
-        # Configure window layout
-        self.grid_columnconfigure(2, weight=1)
+
+        # Configure window layout - adjust to accommodate event selection
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=0)
+        self.grid_columnconfigure(2, weight=1)  # Make column 2 expandable
         self.grid_rowconfigure(2, weight=1)
-        
+
+        # Create event selection frame
+        event_selection_frame = ttk.LabelFrame(self, text="Event Selection")
+        event_selection_frame.grid(row=0, column=0, rowspan=2, padx=5, pady=5, sticky="nsw")
+
+        # Event selection combobox
+        ttk.Label(event_selection_frame, text="Event Index:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.event_combobox = ttk.Combobox(event_selection_frame, width=10, state="readonly")
+        self.event_combobox.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+
+        self.save_button = ttk.Button(event_selection_frame, text="Save Event", command=self.save_results, width=15)
+        self.save_button.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+
         # Create data selection frame
         data_frame = ttk.LabelFrame(self, text="Data Fields")
-        data_frame.grid(row=0, column=0, rowspan=2, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
+        data_frame.grid(row=0, column=1, rowspan=2, columnspan=2, padx=5, pady=5, sticky="nsew")
+
         # X and Y data selectors within the frame
         tk.Label(data_frame, text="X Data:", width=8, anchor="e").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.data_x_combo = ttk.Combobox(data_frame, state="readonly", width=20)
         self.data_x_combo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
+
         tk.Label(data_frame, text="Y Data:", width=8, anchor="e").grid(row=1, column=0, padx=5, pady=5, sticky="e")
         self.data_y_combo = ttk.Combobox(data_frame, state="readonly", width=20)
         self.data_y_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        
+
         # Create frame for results display
         results_frame = ttk.LabelFrame(self, text="Analysis Results")
-        results_frame.grid(row=0, column=2, rowspan=2, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
+        results_frame.grid(row=0, column=3, rowspan=2, columnspan=1, padx=5, pady=5, sticky="nsew")
+
         # Create textboxes for slope and other metrics with consistent width and alignment
         tk.Label(results_frame, text="Loading Stiffness:", anchor="e", width=18).grid(row=0, column=0, padx=5, pady=2, sticky="e")
         self.loading_slope_text = tk.Entry(results_frame, state="readonly", width=12, justify="right")
         self.loading_slope_text.grid(row=0, column=1, padx=5, pady=2, sticky="w")
-        
+
         tk.Label(results_frame, text="Unloading Stiffness:", anchor="e", width=18).grid(row=1, column=0, padx=5, pady=2, sticky="e")
         self.rupture_slope_text = tk.Entry(results_frame, state="readonly", width=12, justify="right")
         self.rupture_slope_text.grid(row=1, column=1, padx=5, pady=2, sticky="w")
-        
+
         tk.Label(results_frame, text="Stress Drop:", anchor="e", width=12).grid(row=0, column=2, padx=5, pady=2, sticky="e")
         self.stress_drop_text = tk.Entry(results_frame, state="readonly", width=12, justify="right")
         self.stress_drop_text.grid(row=0, column=3, padx=5, pady=2, sticky="w")
-        
+
         tk.Label(results_frame, text="Displacement:", anchor="e", width=12).grid(row=1, column=2, padx=5, pady=2, sticky="e")
         self.displacement_text = tk.Entry(results_frame, state="readonly", width=12, justify="right")
         self.displacement_text.grid(row=1, column=3, padx=5, pady=2, sticky="w")
-        
-        # Save button with improved styling
-        self.save_button = ttk.Button(results_frame, text="Save Results", command=self.save_results, width=15)
-        self.save_button.grid(row=0, column=4, rowspan=2, padx=10, pady=5, sticky="e")
-        
+
         # Create matplotlib figure with better styling
         self.figure = Figure(figsize=(10, 6), dpi=100, facecolor='#f5f5f5')
         self.ax = self.figure.add_subplot(111)
@@ -77,38 +87,44 @@ class EventAnalyzerView(tk.Toplevel):
         self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-        
+
         # Add navigation toolbar
         toolbar_frame = ttk.Frame(self)
         toolbar_frame.grid(row=3, column=0, columnspan=4, padx=0, pady=0, sticky="ew")
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         self.toolbar.update()
-        
+
         # Initialize data attributes
         self.data_x = []
         self.data_y = []
-        
+
         # Initialize marker attributes
         self.markers = []
         self.current_artist = None
         self.currently_dragging = False
         self.offset = [0, 0]
-        
+
         # Points to track (6 points total)
         # Points 0,1: Loading slope segment
         # Points 2,3: Rupture slope segment
         # Point 4: Rupture start
         # Point 5: Rupture end
         self.picked_idx = []
-        
+
         # Initialize lines for visualization
         self.loading_line = None
         self.rupture_line = None
         self.rupture_span = None
-        
+
+        # Initialize event combobox
+        self.init_event_combobox()
+
+        # Connect event handler
+        self.event_combobox.bind("<<ComboboxSelected>>", self.on_event_changed)
+
         # Init comboboxes and data
         self.init_comboboxes()
-        
+
         # Check for saved analysis and load it
         if 'event_analysis' in self.event:
             saved_analysis = self.event['event_analysis']
@@ -116,7 +132,7 @@ class EventAnalyzerView(tk.Toplevel):
                 'unloading_indices' in saved_analysis and
                 'rupture_start_index' in saved_analysis and
                 'rupture_end_index' in saved_analysis):
-                
+
                 # Use saved indices
                 self.picked_idx = [
                     saved_analysis['loading_indices'][0],
@@ -132,10 +148,10 @@ class EventAnalyzerView(tk.Toplevel):
         else:
             # Set default positions for the 6 points
             self._set_default_point_positions()
-        
+
         # Plot with points
         self.plot_picked_points()
-        
+
         # Event bindings
         self.figure.canvas.mpl_connect('pick_event', self.on_pick)
         self.figure.canvas.mpl_connect('motion_notify_event', self.on_motion)
@@ -157,6 +173,51 @@ class EventAnalyzerView(tk.Toplevel):
             int(n * 0.7)      # Rupture end
         ]
     
+    def init_event_combobox(self):
+        """Initialize the event selection combobox"""
+        n_events = len(self.data_manager.get_data(f"runs/[{self.run_idx}]/events"))
+        options = [f"{i}" for i in range(n_events)]
+        self.event_combobox.config(values=options)
+        self.event_combobox.current(self.event_idx)
+
+    def on_event_changed(self, event=None):
+        """Handle event selection from combobox"""
+        new_event_idx = int(self.event_combobox.get())
+        if new_event_idx != self.event_idx:
+            self.event_idx = new_event_idx
+            # Update title
+            self.title(f"Event Analyzer - Event {self.event_idx}")
+            # Load the new event
+            self.event = self.data_manager.get_data(f"runs/[{self.run_idx}]/events/[{self.event_idx}]")
+            # Reset the comboboxes with new event data
+            self.init_comboboxes()
+            # Check for saved analysis in the new event
+            if 'event_analysis' in self.event:
+                saved_analysis = self.event['event_analysis']
+                if ('loading_indices' in saved_analysis and 
+                    'unloading_indices' in saved_analysis and
+                    'rupture_start_index' in saved_analysis and
+                    'rupture_end_index' in saved_analysis):
+
+                    # Use saved indices
+                    self.picked_idx = [
+                        saved_analysis['loading_indices'][0],
+                        saved_analysis['loading_indices'][1],
+                        saved_analysis['unloading_indices'][0],
+                        saved_analysis['unloading_indices'][1],
+                        saved_analysis['rupture_start_index'],
+                        saved_analysis['rupture_end_index']
+                    ]
+                else:
+                    # Fall back to default positions
+                    self._set_default_point_positions()
+            else:
+                # Set default positions for the 6 points
+                self._set_default_point_positions()
+
+            # Update the plot with new data and points
+            self.plot_picked_points()
+
     def init_comboboxes(self):
         """Initialize comboboxes with event fields of the same length as time"""
         # Get time array to use as reference length
@@ -352,7 +413,7 @@ class EventAnalyzerView(tk.Toplevel):
             self._set_default_point_positions()
                     
         # Define colors for different point types - using more refined colors
-        colors = ['#3366CC', '#3366CC', '#CC3366', '#CC3366', '#33CC66', '#33CC66']
+        colors = ['#33CCC4', '#33CCC4', '#CC3366', '#CC3366', '#33CC66', '#33CC66']
         # Create new markers for the 6 points
         for i in range(len(self.picked_idx)):
             idx = self.picked_idx[i]
@@ -371,7 +432,7 @@ class EventAnalyzerView(tk.Toplevel):
         # Plot loading slope line (between points 0 and 1)
         x_loading = [self.data_x[self.picked_idx[0]], self.data_x[self.picked_idx[1]]]
         y_loading = [self.data_y[self.picked_idx[0]], self.data_y[self.picked_idx[1]]]
-        self.loading_line, = self.ax.plot(x_loading, y_loading, '--', color='#3366CC', 
+        self.loading_line, = self.ax.plot(x_loading, y_loading, '--', color='#33CCC4', 
                                          linewidth=2, zorder=-50, label='Loading Stiffness')
         
         # Plot rupture slope line (between points 2 and 3)
@@ -386,7 +447,7 @@ class EventAnalyzerView(tk.Toplevel):
         self.rupture_span = self.ax.axvspan(x_start, x_end, alpha=0.15, color='#33CC66', zorder=-100)
         
         # Add legend
-        self.ax.legend(loc='best')
+        # self.ax.legend(loc='best')
         
         # Redraw canvas
         self.canvas.draw()
@@ -589,8 +650,8 @@ class EventAnalyzerView(tk.Toplevel):
             self.parent.refresh_tree()
             
             # Show confirmation message
-            tk.messagebox.showinfo("Save Successful", 
-                                  f"Event analysis results saved to {save_path}")
+            # tk.messagebox.showinfo("Save Successful", 
+            #                       f"Event analysis results saved to {save_path}")
                                   
         except Exception as e:
             tk.messagebox.showerror("Save Failed", f"Error saving results: {e}")

@@ -32,11 +32,12 @@ class LabquakeExplorer:
         self.setup_bindings()
 
         # debug
-        file_path = Path("/Users/hueyke/Library/CloudStorage/SynologyDrive-KeResearch-data/PSU/Gc-dataset/p5993ec.npz")
-        self.data_manager.load_file(file_path)
-        self.save_button.configure(state="normal")
-        self.refresh_tree()
-        print(f"File loaded: {file_path}")
+        # file_path = Path("/Users/hueyke/Library/CloudStorage/SynologyDrive-KeResearch-data/PSU/Gc-dataset/p5993ec.npz")
+        # file_path = Path("smb://KeResearchNAS._smb._tcp.local/data/PSU/Gc-dataset/p5993ec.npz")
+        # self.data_manager.load_file(file_path)
+        # self.save_button.configure(state="normal")
+        # self.refresh_tree()
+        # print(f"File loaded: {file_path}")
 
     def setup_window(self) -> None:
         screen_height = self.root.winfo_screenheight()

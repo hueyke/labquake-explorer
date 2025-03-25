@@ -165,11 +165,11 @@ class EventAnalyzerView(tk.Toplevel):
         """Helper method to set default point positions"""
         n = len(self.data_y)
         self.picked_idx = [
-            int(n * 0.3),     # Loading slope start
-            int(n * 0.45),    # Loading slope end
+            int(n * 0.25),     # Loading slope start
+            int(n * 0.35),    # Loading slope end
             int(n * 0.5),     # Rupture slope start
-            int(n * 0.7),     # Rupture slope end
-            int(n * 0.5),     # Rupture start
+            int(n * 0.6),     # Rupture slope end
+            int(n * 0.4),     # Rupture start
             int(n * 0.7)      # Rupture end
         ]
     

@@ -354,10 +354,11 @@ class CZMFitterView(tk.Toplevel):
             exy = signal.savgol_filter(exy, window_length, 2)
             eyy = signal.savgol_filter(eyy, window_length, 2)
 
-        idx_zero = np.argmin(np.abs(t - line_positions[2]))
+        idx_zero_xy = np.argmin(np.abs(t - line_positions[2]))
+        idx_zero_yy = np.argmin(np.abs(t - line_positions[0]))
         # Plot data
-        self.axs[0].plot(t, exy - exy[idx_zero], 'b-', label='Exy')
-        self.axs[1].plot(t, eyy - eyy[idx_zero], 'r-', label='Eyy')
+        self.axs[0].plot(t, exy - exy[idx_zero_xy], 'b-', label='Exy')
+        self.axs[1].plot(t, eyy - eyy[idx_zero_yy], 'r-', label='Eyy')
 
         # Add delta_sigma_xy to the Sxy axis
         rupture_speed = self.Cf.get()
@@ -375,8 +376,8 @@ class CZMFitterView(tk.Toplevel):
         delta_e_xx, delta_e_xy, delta_e_yy = DataProcessor.stress_to_strain(
             self.E, self.nu, delta_sigma_xx, delta_sigma_xy, delta_sigma_yy
         )
-        delta_e_xy -= delta_e_xy[idx_zero]
-        delta_e_yy -= delta_e_yy[idx_zero]
+        delta_e_xy -= delta_e_xy[idx_zero_xy]
+        delta_e_yy -= delta_e_yy[idx_zero_yy]
         self.axs[0].plot(t, delta_e_xy, 'g--', label='CZM')
         self.axs[1].plot(t, delta_e_yy, 'g--', label='CZM')
 

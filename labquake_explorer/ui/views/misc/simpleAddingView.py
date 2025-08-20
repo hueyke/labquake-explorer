@@ -27,7 +27,12 @@ class ChildView:
         self.update_callback()
 
     def on_close(self):
-        self.window.destroy()
+        """Properly handle window close without leaving dangling references."""
+        try:
+            # Perform cleanup if needed
+            pass
+        finally:
+            self.window.destroy()
 
 class MainView:
     def __init__(self, root):

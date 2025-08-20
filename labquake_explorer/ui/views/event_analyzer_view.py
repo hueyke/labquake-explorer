@@ -14,6 +14,7 @@ class EventAnalyzerView(tk.Toplevel):
         self.parent = parent
         super().__init__(self.parent.root)
         self.title(f"Event Analyzer - Event {event_idx}")
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         # Initialize data attributes
         self.run_idx = run_idx
@@ -655,3 +656,12 @@ class EventAnalyzerView(tk.Toplevel):
                                   
         except Exception as e:
             tk.messagebox.showerror("Save Failed", f"Error saving results: {e}")
+            
+    def on_close(self):
+        """Properly handle window close without passing a Tcl string callback."""
+        try:
+            # If you want to confirm closing or save state, do it here.
+            # For now, we just destroy the Toplevel cleanly.
+            pass
+        finally:
+            self.destroy()

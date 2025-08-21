@@ -32,11 +32,10 @@ class EventProcessor:
             # Extract time window around event
             idx_beg = np.argmin(np.abs(event_time - window - run_data["time"]))
             idx_end = np.argmin(np.abs(event_time + window - run_data["time"]))
-            idx_event = range(idx_beg, idx_end + 1)
             
             # Store basic event info
             event['event_time'] = event_time
-            event['time'] = run_data['time'][idx_event]
+            event['time'] = run_data['time'][idx_beg:idx_end]
 
             try:
                 # Store mechanical data
@@ -47,12 +46,12 @@ class EventProcessor:
                 
                 for field in mechanical_fields:
                     if field in run_data:
-                        event[field] = run_data[field][idx_event]
+                        event[field] = run_data[field][idx_beg:idx_end]
 
                 # Handle strain data if available
                 if 'strain' in run_data:
                     event['strain'] = self._process_strain_data(
-                        run_data, event_time, window, idx_event
+                        run_data, event_time, window, idx_beg, idx_end
                     )
 
             except Exception as e:
@@ -63,7 +62,7 @@ class EventProcessor:
                         continue
                     if isinstance(run_data[key], (np.ndarray, list)):
                         try:
-                            event[key] = run_data[key][idx_event]
+                            event[key] = run_data[key][idx_beg:idx_end]
                         except IndexError:
                             event[key] = run_data[key][idx]
             
@@ -72,7 +71,7 @@ class EventProcessor:
         return events
 
     def _process_strain_data(self, run_data: Dict[str, Any], event_time: float, 
-                           window: float, idx_event: range) -> Dict[str, Any]:
+                           window: float, idx_beg: int, idx_end: int) -> Dict[str, Any]:
         """Process strain data for a single event"""
         if self.data_path is None:
             raise ValueError("Data path not set. Call set_data_path() first.")
